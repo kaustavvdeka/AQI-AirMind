@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  ai:
+    build: ./ai
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/app/../data
+      - ./ai/models:/app/models
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    env_file: .env
+    environment:
+      - AI_SERVICE_URL=http://ai:8000
+    depends_on:
+      - ai
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "4173:4173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000
+    depends_on:
+      - backend
+
+# MongoDB is expected to be MongoDB Atlas (cloud) per MONGODB_URI in .env.
+# To run Mongo locally instead during development, uncomment below and
+# point MONGODB_URI at mongodb://mongo:27017/airmind.
+#
+#  mongo:
+#    image: mongo:7
+#    ports:
+#      - "27017:27017"
+#    volumes:
+#      - mongo_data:/data/db
+#
+# volumes:
+#   mongo_data:
