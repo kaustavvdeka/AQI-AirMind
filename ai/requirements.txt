@@ -21,3 +21,6 @@ shap==0.46.0
 
 # Gemini for recommendations
 google-generativeai>=0.8.0
+
+# Database connectivity
+pymongo==4.17.0

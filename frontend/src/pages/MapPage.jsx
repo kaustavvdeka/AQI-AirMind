@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Circle, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Circle, Polyline, Polygon, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
@@ -28,9 +28,14 @@ const OSM_FACILITIES = [
 export default function MapPage() {
   const { location, coords, aqi } = useLocation();
   const [stations, setStations] = useState([]);
+  const [hotspots, setHotspots] = useState([]);
+  const [weather, setWeather] = useState(null);
+  const [forecastHour, setForecastHour] = useState(0); // 0 (Live), 24, 48, 72 hours
   const [layers, setLayers] = useState({
     stations: true,
     heatmap: true,
+    hotspots: true,
+    windVectors: true,
     Hospital: true,
     School: true,
     "Industrial Area": true,
@@ -38,8 +43,29 @@ export default function MapPage() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Load weather and hotspots
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const wx = await api.liveWeather(coords.lat, coords.lon);
+        setWeather(wx);
+        
+        // Fetch hotspots with wind vectors from AI clustering service
+        const ws = wx?.windSpeed || 3.0;
+        const wd = wx?.windDeg || 180.0;
+        const hs = await api.hotspots(ws, wd);
+        setHotspots(hs);
+      } catch (err) {
+        console.error("Could not fetch hotspots or weather data:", err);
+      }
+    }
+    loadData();
+  }, [coords]);
+
+  // Load stations
   useEffect(() => {
     async function loadStations() {
+      setLoading(true);
       try {
         const data = await api.latestAqi();
         if (data && data.length > 0) {
@@ -79,7 +105,7 @@ export default function MapPage() {
     return "#a855f7";
   }
 
-  // Prepend current active location from context if it isn't already inside the database list
+  // Prepend current active location from context
   const activeStation = aqi ? {
     location: location,
     lat: coords.lat,
@@ -98,11 +124,59 @@ export default function MapPage() {
     displayStations.unshift(activeStation);
   }
 
-  // Generate dynamic municipal overlays anchored around the active search coordinate
+  // Apply forecast offsets: simulate drift & pollution accumulation over selected hours
+  const mappedStations = displayStations.map((s) => {
+    if (forecastHour === 0) return s;
+    
+    // Simulate forecast accumulation: standard weather parameters influence growth
+    const wd = weather?.windSpeed || 3.0;
+    const direction_deg = weather?.windDeg || 180.0;
+    
+    // If wind is high, dispersion reduces forecast AQI slightly, low wind traps and raises it
+    const dispersion_factor = wd < 3.0 ? 1.25 : 0.85;
+    const time_multiplier = forecastHour / 24;
+    
+    const aqi_delta = time_multiplier * 18 * dispersion_factor * Math.sin(s.lat + forecastHour);
+    const forecastedAqi = Math.max(0, Math.min(500, s.aqi + aqi_delta));
+    
+    return {
+      ...s,
+      aqi: forecastedAqi,
+      // Apply offset to lat/lon showing simulated pollutant clouds drifting downwind
+      lat: s.lat + (time_multiplier * wd * Math.cos(direction_deg * Math.PI / 180.0) * 0.003),
+      lon: s.lon + (time_multiplier * wd * Math.sin(direction_deg * Math.PI / 180.0) * 0.003)
+    };
+  });
+
   const dynamicFacilities = OSM_FACILITIES.map((f) => ({
     ...f,
     position: [coords.lat + f.offsetLat, coords.lon + f.offsetLon]
   }));
+
+  // Build wind vector arrow line offsets
+  const windLines = mappedStations.map((s) => {
+    const ws = weather?.windSpeed || 3.0;
+    const wd = weather?.windDeg || 180.0;
+    const rad = (wd * Math.PI) / 180.0;
+    
+    // Length of wind vector arrow
+    const len = 0.006 * ws;
+    const endLat = s.lat + len * Math.cos(rad);
+    const endLon = s.lon + len * Math.sin(rad);
+    
+    // Draw simple arrowhead lines
+    const headLen = len * 0.25;
+    const arrowLeftLat = endLat - headLen * Math.cos(rad - Math.PI / 6);
+    const arrowLeftLon = endLon - headLen * Math.sin(rad - Math.PI / 6);
+    const arrowRightLat = endLat - headLen * Math.cos(rad + Math.PI / 6);
+    const arrowRightLon = endLon - headLen * Math.sin(rad + Math.PI / 6);
+
+    return {
+      line: [[s.lat, s.lon], [endLat, endLon]],
+      arrowLeft: [[endLat, endLon], [arrowLeftLat, arrowLeftLon]],
+      arrowRight: [[endLat, endLon], [arrowRightLat, arrowRightLon]]
+    };
+  });
 
   return (
     <div className="page animate-in">
@@ -130,6 +204,14 @@ export default function MapPage() {
             <input type="checkbox" checked={layers.heatmap} onChange={() => toggle("heatmap")} />
             Pollution Heatmap
           </label>
+          <label>
+            <input type="checkbox" checked={layers.hotspots} onChange={() => toggle("hotspots")} />
+            🔥 DBSCAN Hotspots
+          </label>
+          <label>
+            <input type="checkbox" checked={layers.windVectors} onChange={() => toggle("windVectors")} />
+            💨 Wind Vectors
+          </label>
           <span style={{ margin: "0 8px", color: "var(--border-strong)" }}>|</span>
           <label>
             <input type="checkbox" checked={layers.Hospital} onChange={() => toggle("Hospital")} />
@@ -156,7 +238,7 @@ export default function MapPage() {
           <p>Loading GIS datasets and map tiles…</p>
         </div>
       ) : (
-        <div className="map-container animate-in stagger-2">
+        <div className="map-container animate-in stagger-2" style={{ position: "relative" }}>
           <MapContainer 
             center={[coords.lat, coords.lon]} 
             zoom={12} 
@@ -167,11 +249,10 @@ export default function MapPage() {
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
 
-            {/* Recenter sub-component triggered by coordinates state changes */}
             <RecenterMap coords={coords} />
 
             {/* Heatmap overlay using large translucent circles around station hotspots */}
-            {layers.heatmap && displayStations.map((s, idx) => (
+            {layers.heatmap && mappedStations.map((s, idx) => (
               <Circle
                 key={`heat-${idx}`}
                 center={[s.lat, s.lon]}
@@ -184,8 +265,69 @@ export default function MapPage() {
               />
             ))}
 
-            {/* Monitoring stations */}
-            {layers.stations && displayStations.map((s, idx) => (
+            {/* DBSCAN Hotspots and Wind Drift Polygons */}
+            {layers.hotspots && hotspots.map((h, idx) => (
+              <div key={`hotspot-group-${idx}`}>
+                {/* Hotspot Center Boundary */}
+                <Circle
+                  center={h.center}
+                  radius={h.radius_meters}
+                  pathOptions={{
+                    fillColor: "#ef4444",
+                    fillOpacity: 0.22,
+                    color: "#ef4444",
+                    weight: 2,
+                    dashArray: "4, 6"
+                  }}
+                />
+                
+                {/* Bounding Polygon shifted downwind */}
+                <Polygon
+                  positions={h.drift_bounds}
+                  pathOptions={{
+                    fillColor: "#f97316",
+                    fillOpacity: 0.08,
+                    color: "#f97316",
+                    weight: 1,
+                    dashArray: "3, 5"
+                  }}
+                >
+                  <Popup>
+                    <div style={{ minWidth: 200 }}>
+                      <h3 style={{ fontSize: "0.9rem", margin: "0 0 6px 0", color: "#f97316" }}>
+                        🔥 DBSCAN Cluster {h.cluster_id + 1}
+                      </h3>
+                      <div>Active Points: <strong>{h.sample_count} nodes</strong></div>
+                      <div>Mean Cluster AQI: <strong>{h.mean_aqi} ({getAqiLabel(h.mean_aqi)})</strong></div>
+                      <div style={{ margin: "4px 0" }}>
+                        Hotspot Confidence: <span style={{ color: "#ef4444", fontWeight: 700 }}>{h.confidence_score}%</span>
+                      </div>
+                      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "8px 0" }} />
+                      <div style={{ fontSize: "0.78rem" }}>
+                        <strong>Estimated Source Apportionment:</strong>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                          <span>Traffic: {h.source_attribution?.Traffic}%</span>
+                          <span>Industry: {h.source_attribution?.Industry}%</span>
+                          <span>Biomass: {h.source_attribution?.Biomass}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Polygon>
+              </div>
+            ))}
+
+            {/* Wind Vector Lines */}
+            {layers.windVectors && windLines.map((wl, idx) => (
+              <div key={`wind-${idx}`}>
+                <Polyline positions={wl.line} pathOptions={{ color: "#2dd4bf", weight: 2, opacity: 0.8 }} />
+                <Polyline positions={wl.arrowLeft} pathOptions={{ color: "#2dd4bf", weight: 2, opacity: 0.8 }} />
+                <Polyline positions={wl.arrowRight} pathOptions={{ color: "#2dd4bf", weight: 2, opacity: 0.8 }} />
+              </div>
+            ))}
+
+            {/* Ground Stations */}
+            {layers.stations && mappedStations.map((s, idx) => (
               <CircleMarker
                 key={`station-${idx}`}
                 center={[s.lat, s.lon]}
@@ -207,6 +349,11 @@ export default function MapPage() {
                         AQI {Math.round(s.aqi)} · {getAqiLabel(s.aqi)}
                       </span>
                     </div>
+                    {forecastHour > 0 && (
+                      <div style={{ fontSize: "0.78rem", color: "var(--accent)", marginBottom: 8, fontWeight: 600 }}>
+                        🔮 Forecast Shift: +{forecastHour} Hours
+                      </div>
+                    )}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: "0.78rem" }}>
                       <div>PM2.5: <strong>{s.pm25 ? s.pm25.toFixed(1) : "—"} µg/m³</strong></div>
                       <div>PM10: <strong>{s.pm10 ? s.pm10.toFixed(1) : "—"} µg/m³</strong></div>
@@ -220,7 +367,7 @@ export default function MapPage() {
               </CircleMarker>
             ))}
 
-            {/* Municipal facility layers offset around active coordinates */}
+            {/* Municipal/OSM Overpass facility layers */}
             {dynamicFacilities.filter((f) => layers[f.type]).map((f, idx) => {
               const markerIcons = {
                 Hospital: "🏥",
@@ -242,6 +389,50 @@ export default function MapPage() {
               );
             })}
           </MapContainer>
+
+          {/* Time Slider Overlay */}
+          <div 
+            style={{ 
+              position: "absolute", 
+              bottom: 24, 
+              left: "50%", 
+              transform: "translateX(-50%)", 
+              zIndex: 1000,
+              width: "80%",
+              maxWidth: 500,
+              padding: "12px 24px",
+              borderRadius: "100px",
+              background: "rgba(13, 18, 25, 0.95)",
+              border: "1px solid var(--border-strong)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              <span>🕒 Time Horizon Slider:</span>
+              <span style={{ color: "var(--accent)" }}>
+                {forecastHour === 0 ? "LIVE Ground Station Metrics" : `🔮 Forecast +${forecastHour} Hours`}
+              </span>
+            </div>
+            <input 
+              type="range" 
+              min={0} 
+              max={72} 
+              step={24} 
+              value={forecastHour} 
+              onChange={(e) => setForecastHour(Number(e.target.value))}
+              style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer" }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: 600 }}>
+              <span>Live</span>
+              <span>24h Forecast</span>
+              <span>48h Forecast</span>
+              <span>72h Forecast</span>
+            </div>
+          </div>
         </div>
       )}
 

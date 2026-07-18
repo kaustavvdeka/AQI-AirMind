@@ -31,6 +31,8 @@ export const api = {
   latestAqi: () => request("/api/aqi/latest"),
   aqiHistory: (location, days = 7) =>
     request(`/api/aqi/history?location=${encodeURIComponent(location)}&days=${days}`),
+  hotspots: (windSpeed = 3.0, windDirection = 180.0) =>
+    request(`/api/aqi/hotspots?wind_speed=${windSpeed}&wind_direction=${windDirection}`),
 
   // Weather
   liveWeather: (lat, lon) => request(`/api/weather/live?lat=${lat}&lon=${lon}`),

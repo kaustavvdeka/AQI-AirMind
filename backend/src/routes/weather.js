@@ -23,6 +23,7 @@ router.get("/live", async (req, res, next) => {
       humidity: data.main?.humidity,
       pressure: data.main?.pressure,
       windSpeed: data.wind?.speed,
+      windDeg: data.wind?.deg || 180,
       rainfall: data.rain?.["1h"] || 0,
       recordedAt: new Date(),
     });

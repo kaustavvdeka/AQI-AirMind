@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Aqi from "../models/Aqi.js";
+import { aiClient } from "../utils/aiClient.js";
 
 const router = Router();
 
@@ -85,6 +86,18 @@ router.get("/live", async (req, res, next) => {
     });
 
     res.json(record);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/aqi/hotspots?wind_speed=3.0&wind_direction=180.0
+router.get("/hotspots", async (req, res, next) => {
+  try {
+    const windSpeed = parseFloat(req.query.wind_speed) || 3.0;
+    const windDirection = parseFloat(req.query.wind_direction) || 180.0;
+    const hotspots = await aiClient.hotspots(windSpeed, windDirection);
+    res.json(hotspots);
   } catch (err) {
     next(err);
   }

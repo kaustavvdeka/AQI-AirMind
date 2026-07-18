@@ -36,11 +36,15 @@ export default function Prediction() {
       importance: Number((score * 100).toFixed(1)),
     })) || [];
 
+  const attribution = explanation?.source_attribution?.contributions || {};
+  const explanationText = explanation?.source_attribution?.explanation || "";
+  const cpcb = explanation?.cpcb_details || {};
+
   return (
     <div className="page animate-in">
       <header className="page-header">
-        <h1>AI Predictions & Advisories</h1>
-        <p>SaaS analytics using Random Forest & XGBoost with explainable SHAP drivers and Gemini recommendations.</p>
+        <h1>AI Predictions, Advisories & Source Apportionment</h1>
+        <p>SaaS analytics using Random Forest & XGBoost with CPCB calculator step-by-step verification.</p>
       </header>
 
       {loading ? (
@@ -93,7 +97,7 @@ export default function Prediction() {
             </section>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="forecast-grid">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }} className="forecast-grid">
             {/* Drivers and recommendations */}
             <section className="card-glass card-glow" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div>
@@ -144,8 +148,85 @@ export default function Prediction() {
               )}
             </section>
 
+            {/* Pollution Source Attribution Section */}
+            <section className="card-glass" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>
+                  🏭 Pollution Source Attribution Model
+                </h2>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                  Mathematical apportionment of active pollution vectors using chemical ratios and wind drift.
+                </p>
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {Object.entries(attribution).map(([source, percentage]) => (
+                  <div key={source}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem", fontWeight: 600, marginBottom: 4 }}>
+                      <span>{source}</span>
+                      <span style={{ color: "var(--accent)" }}>{percentage}%</span>
+                    </div>
+                    <div style={{ height: 8, background: "rgba(255,255,255,0.04)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${percentage}%`, background: "var(--accent)", borderRadius: 4 }}></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {explanationText && (
+                <div className="notice notice-info" style={{ fontSize: "0.82rem", marginTop: 8 }}>
+                  <strong>Model Reasoning:</strong> {explanationText}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 24 }} className="forecast-grid">
+            {/* CPCB Step-by-Step Calculations */}
+            <section className="card-glass" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 4 }}>
+                  🧮 CPCB Sub-Index Verification Steps
+                </h2>
+                <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                  Breakpoints interpolation: Subindex = [ (I_hi - I_lo) / (C_hi - C_lo) ] * (C - C_lo) + I_lo
+                </p>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {cpcb.calculation_steps && Object.entries(cpcb.calculation_steps).map(([poll, step]) => (
+                  <div key={poll} style={{ padding: 12, background: "var(--bg-surface)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", fontWeight: 700, marginBottom: 4 }}>
+                      <span style={{ textTransform: "uppercase" }}>{poll} Sub-Index</span>
+                      <span style={{ color: "var(--accent)" }}>{cpcb.sub_indices?.[poll]}</span>
+                    </div>
+                    <div style={{ fontSize: "0.78rem", fontFamily: "monospace", color: "var(--text-secondary)" }}>
+                      Formula: {step}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {cpcb.dominant_pollutant && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, padding: "12px 18px", background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.2)", borderRadius: 12 }}>
+                  <div>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Dominant Pollutant:</span>
+                    <strong style={{ fontSize: "0.95rem", marginLeft: 8, textTransform: "uppercase", color: "white" }}>
+                      {cpcb.dominant_pollutant}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>Calculated AQI:</span>
+                    <strong style={{ fontSize: "1.2rem", marginLeft: 8, color: "var(--accent)" }}>
+                      {cpcb.aqi}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </section>
+
             {/* Feature Importance Chart */}
-            <section className="chart-section" style={{ margin: 0, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <section className="chart-section" style={{ margin: 0 }}>
               <div>
                 <h2>📊 Global Model Feature Importance</h2>
                 <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginBottom: 16 }}>

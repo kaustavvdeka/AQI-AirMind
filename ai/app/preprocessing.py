@@ -15,49 +15,18 @@ logger = logging.getLogger(__name__)
 POLLUTANTS = ["pm25", "pm10", "no2", "so2", "co", "o3"]
 WEATHER = ["temperature", "humidity", "pressure", "wind_speed", "rainfall"]
 
-# EPA breakpoints for PM2.5 → AQI (used as target when no direct AQI column)
-PM25_BREAKPOINTS = [
-    (0.0, 12.0, 0, 50),
-    (12.1, 35.4, 51, 100),
-    (35.5, 55.4, 101, 150),
-    (55.5, 150.4, 151, 200),
-    (150.5, 250.4, 201, 300),
-    (250.5, 350.4, 301, 400),
-    (350.5, 500.4, 401, 500),
-]
-
+from app.cpcb_calculator import calculate_cpcb_aqi, calculate_sub_index
 
 def pm25_to_aqi(pm25: float) -> float:
-    if pd.isna(pm25) or pm25 < 0:
-        return np.nan
-    for c_lo, c_hi, i_lo, i_hi in PM25_BREAKPOINTS:
-        if c_lo <= pm25 <= c_hi:
-            return round(((i_hi - i_lo) / (c_hi - c_lo)) * (pm25 - c_lo) + i_lo, 1)
-    return 500.0  # cap
-
-
-def no2_ug_to_aqi(no2_ug: float) -> float:
-    """Convert NO2 µg/m³ to AQI sub-index (India CPCB breakpoints)."""
-    if pd.isna(no2_ug) or no2_ug < 0:
-        return np.nan
-    breakpoints = [
-        (0, 40, 0, 50), (41, 80, 51, 100), (81, 180, 101, 200),
-        (181, 280, 201, 300), (281, 400, 301, 400), (401, 1000, 401, 500),
-    ]
-    for c_lo, c_hi, i_lo, i_hi in breakpoints:
-        if c_lo <= no2_ug <= c_hi:
-            return round(((i_hi - i_lo) / (c_hi - c_lo)) * (no2_ug - c_lo) + i_lo, 1)
-    return 500.0
-
+    return calculate_sub_index("pm25", pm25)
 
 def compute_aqi(row: pd.Series) -> float:
-    """Compute overall AQI as the max sub-index across all available pollutants."""
-    sub_indices = []
-    if "pm25" in row and not pd.isna(row["pm25"]):
-        sub_indices.append(pm25_to_aqi(row["pm25"]))
-    if "no2" in row and not pd.isna(row["no2"]):
-        sub_indices.append(no2_ug_to_aqi(row["no2"]))
-    return max(sub_indices) if sub_indices else np.nan
+    """Compute overall CPCB AQI across all available pollutants."""
+    metrics = {}
+    for poll in POLLUTANTS:
+        if poll in row and not pd.isna(row[poll]):
+            metrics[poll] = float(row[poll])
+    return calculate_cpcb_aqi(metrics)["aqi"]
 
 
 def load_raw() -> tuple[pd.DataFrame, pd.DataFrame]:

@@ -22,4 +22,5 @@ export const aiClient = {
   train: (forceRebuildData = false) =>
     callAiService("/train", { method: "POST", body: JSON.stringify({ force_rebuild_data: forceRebuildData }) }),
   retrain: () => callAiService("/retrain", { method: "POST" }),
+  hotspots: (windSpeed = 3.0, windDirection = 180.0) => callAiService(`/hotspots?wind_speed=${windSpeed}&wind_direction=${windDirection}`),
 };

@@ -206,6 +206,54 @@ def explain():
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+from pymongo import MongoClient
+from app.config import MONGODB_URI
+from app.hotspots import identify_hotspots
+
+@app.get("/hotspots")
+def hotspots(wind_speed: float = 3.0, wind_direction: float = 180.0):
+    try:
+        client = MongoClient(MONGODB_URI)
+        db = client.get_database()
+        
+        # Pull station AQI records
+        aqi_records = list(db["aqis"].find({}, {"_id": 0, "location": 1, "lat": 1, "lon": 1, "aqi": 1}))
+        # Pull citizen reports
+        report_records = list(db["reports"].find({"status": {"$ne": "rejected"}}, {"_id": 0, "description": 1, "lat": 1, "lon": 1}))
+        
+        points = []
+        for r in aqi_records:
+            points.append({
+                "name": r.get("location"),
+                "lat": float(r["lat"]),
+                "lon": float(r["lon"]),
+                "aqi": float(r["aqi"])
+            })
+        for r in report_records:
+            points.append({
+                "name": r.get("description", "Reported Incident")[:30],
+                "lat": float(r["lat"]),
+                "lon": float(r["lon"]),
+                "aqi": 250.0
+            })
+            
+        if len(points) < 2:
+            points = [
+                {"name": "Guwahati Central", "lat": 26.1445, "lon": 91.7362, "aqi": 154.0},
+                {"name": "Jalukbari", "lat": 26.152, "lon": 91.674, "aqi": 185.0},
+                {"name": "Khanapara", "lat": 26.115, "lon": 91.815, "aqi": 240.0},
+                {"name": "Dispur", "lat": 26.1398, "lon": 91.7915, "aqi": 82.0},
+                {"name": "Incident 1", "lat": 26.1420, "lon": 91.7310, "aqi": 250.0},
+                {"name": "Incident 2", "lat": 26.1460, "lon": 91.7400, "aqi": 250.0},
+            ]
+            
+        results = identify_hotspots(points, wind_speed, wind_direction)
+        return results
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
