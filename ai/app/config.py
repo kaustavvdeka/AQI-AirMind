@@ -16,11 +16,18 @@ OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY") or os.getenv("OpenWeather
 GEE_PROJECT_ID = os.getenv("GEE_PROJECT_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MONGODB_URI = os.getenv("MONGODB_URI")
+FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY")
+TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
+HERE_API_KEY = os.getenv("HERE_API_KEY")
+REDIS_URL = os.getenv("REDIS_URL")
 
 # --- Location (default demo city: Guwahati) --------------------------
 DEFAULT_LAT = float(os.getenv("DEFAULT_LAT", "26.1445"))
 DEFAULT_LON = float(os.getenv("DEFAULT_LON", "91.7362"))
 DEFAULT_CITY = os.getenv("DEFAULT_CITY", "Guwahati")
+LIGHTGBM_ENABLED = os.getenv("LIGHTGBM_ENABLED", "true").lower() == "true"
+CATBOOST_ENABLED = os.getenv("CATBOOST_ENABLED", "true").lower() == "true"
+
 
 # --- Paths ------------------------------------------------------------
 DATA_DIR = ROOT_DIR / "data"

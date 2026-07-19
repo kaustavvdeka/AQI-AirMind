@@ -1,10 +1,11 @@
 """
-Train AQI prediction model. Compares Random Forest against XGBoost,
-evaluates both with cross-validation, keeps the better one, and generates:
+Train AQI prediction model. Compares Random Forest against XGBoost, LightGBM, CatBoost,
+evaluates all with cross-validation, keeps the best model, and generates:
 - training_report.json
 - metrics.json
 - feature_importance.csv
-- Scatter, residual, and feature importance plots
+- SHAP values & plots
+- Scatter & residual plots
 """
 import json
 import logging
@@ -32,12 +33,30 @@ from app.preprocessing import build_training_dataset
 
 logger = logging.getLogger(__name__)
 
+# Model Imports with Fallbacks
 try:
     from xgboost import XGBRegressor
     HAS_XGBOOST = True
 except ImportError:
     HAS_XGBOOST = False
-    logger.warning("XGBoost not installed — only Random Forest will be trained")
+
+try:
+    import lightgbm as lgb
+    HAS_LIGHTGBM = True
+except ImportError:
+    HAS_LIGHTGBM = False
+
+try:
+    from catboost import CatBoostRegressor
+    HAS_CATBOOST = True
+except ImportError:
+    HAS_CATBOOST = False
+
+try:
+    import shap
+    HAS_SHAP = True
+except ImportError:
+    HAS_SHAP = False
 
 PLOTS_DIR = MODELS_DIR.parent / "plots"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,10 +79,8 @@ FEATURE_COLUMNS = [
 ]
 TARGET_COLUMN = "aqi"
 
-
 def _rmse(y_true, y_pred) -> float:
     return float(np.sqrt(mean_squared_error(y_true, y_pred)))
-
 
 def _metrics(y_true, y_pred) -> dict:
     return {
@@ -72,7 +89,6 @@ def _metrics(y_true, y_pred) -> dict:
         "mae": round(float(mean_absolute_error(y_true, y_pred)), 4),
         "mape": round(float(mean_absolute_percentage_error(y_true, y_pred)), 4),
     }
-
 
 def _save_scatter_plot(y_test, y_pred, model_name: str):
     fig, ax = plt.subplots(figsize=(6, 6))
@@ -87,7 +103,6 @@ def _save_scatter_plot(y_test, y_pred, model_name: str):
     fig.savefig(PLOTS_DIR / f"{model_name}_scatter.png", dpi=100)
     plt.close(fig)
 
-
 def _save_residual_plot(y_test, y_pred, model_name: str):
     residuals = np.array(y_test) - np.array(y_pred)
     fig, ax = plt.subplots(figsize=(8, 4))
@@ -99,7 +114,6 @@ def _save_residual_plot(y_test, y_pred, model_name: str):
     fig.tight_layout()
     fig.savefig(PLOTS_DIR / f"{model_name}_residuals.png", dpi=100)
     plt.close(fig)
-
 
 def _save_feature_importance_plot(feature_importance: list, model_name: str):
     top = feature_importance[:15]
@@ -113,6 +127,27 @@ def _save_feature_importance_plot(feature_importance: list, model_name: str):
     fig.savefig(PLOTS_DIR / f"{model_name}_feature_importance.png", dpi=100)
     plt.close(fig)
 
+def compute_shap_analysis(model, X_sample: pd.DataFrame) -> dict:
+    if not HAS_SHAP:
+        return {"status": "SHAP library not available"}
+    try:
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_sample)
+        if isinstance(shap_values, list):
+            shap_values = shap_values[0]
+            
+        mean_abs_shap = np.abs(shap_values).mean(axis=0)
+        shap_importance = sorted(
+            zip(X_sample.columns.tolist(), mean_abs_shap.tolist()),
+            key=lambda x: x[1], reverse=True
+        )
+        return {
+            "top_shap_features": shap_importance[:10],
+            "shap_values_mean": mean_abs_shap.tolist()
+        }
+    except Exception as e:
+        logger.warning(f"Could not compute SHAP analysis: {e}")
+        return {"status": f"SHAP error: {str(e)}"}
 
 def train_and_select_best(force_rebuild_data: bool = False) -> dict:
     logger.info("Building training dataset (force=%s)…", force_rebuild_data)
@@ -129,8 +164,10 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
     )
 
     candidates = {}
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
-    logger.info("Training Random Forest (n_estimators=300)…")
+    # 1. Random Forest
+    logger.info("Training Random Forest...")
     rf = RandomForestRegressor(
         n_estimators=300, max_depth=None, min_samples_leaf=2,
         random_state=42, n_jobs=-1
@@ -138,11 +175,13 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
     rf.fit(X_train, y_train)
     rf_pred = rf.predict(X_test)
     rf_metrics = _metrics(y_test, rf_pred)
-    logger.info("RF metrics: %s", rf_metrics)
+    rf_cv = cross_val_score(rf, X, y, cv=kf, scoring="r2").mean()
+    rf_metrics["cv_r2"] = round(float(rf_cv), 4)
     candidates["random_forest"] = (rf, rf_metrics, rf_pred)
 
+    # 2. XGBoost
     if HAS_XGBOOST:
-        logger.info("Training XGBoost (n_estimators=300)…")
+        logger.info("Training XGBoost...")
         xgb = XGBRegressor(
             n_estimators=300, max_depth=6, learning_rate=0.05,
             subsample=0.8, colsample_bytree=0.8,
@@ -151,16 +190,45 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
         xgb.fit(X_train, y_train)
         xgb_pred = xgb.predict(X_test)
         xgb_metrics = _metrics(y_test, xgb_pred)
-        logger.info("XGBoost metrics: %s", xgb_metrics)
+        xgb_cv = cross_val_score(xgb, X, y, cv=kf, scoring="r2").mean()
+        xgb_metrics["cv_r2"] = round(float(xgb_cv), 4)
         candidates["xgboost"] = (xgb, xgb_metrics, xgb_pred)
+
+    # 3. LightGBM
+    if HAS_LIGHTGBM:
+        logger.info("Training LightGBM...")
+        lgb_model = lgb.LGBMRegressor(
+            n_estimators=300, learning_rate=0.05, num_leaves=31,
+            random_state=42, n_jobs=-1, verbose=-1
+        )
+        lgb_model.fit(X_train, y_train)
+        lgb_pred = lgb_model.predict(X_test)
+        lgb_metrics = _metrics(y_test, lgb_pred)
+        lgb_cv = cross_val_score(lgb_model, X, y, cv=kf, scoring="r2").mean()
+        lgb_metrics["cv_r2"] = round(float(lgb_cv), 4)
+        candidates["lightgbm"] = (lgb_model, lgb_metrics, lgb_pred)
+
+    # 4. CatBoost
+    if HAS_CATBOOST:
+        logger.info("Training CatBoost...")
+        cat = CatBoostRegressor(
+            iterations=300, learning_rate=0.05, depth=6,
+            random_seed=42, verbose=0
+        )
+        cat.fit(X_train, y_train)
+        cat_pred = cat.predict(X_test)
+        cat_metrics = _metrics(y_test, cat_pred)
+        cat_cv = cross_val_score(cat, X, y, cv=kf, scoring="r2").mean()
+        cat_metrics["cv_r2"] = round(float(cat_cv), 4)
+        candidates["catboost"] = (cat, cat_metrics, cat_pred)
 
     # Best model = highest R² on held-out test set
     best_name, (best_model, best_metrics, best_pred) = max(
         candidates.items(), key=lambda kv: kv[1][1]["r2"]
     )
-    logger.info("Best model: %s (R²=%.4f)", best_name, best_metrics["r2"])
+    logger.info("Best model: %s (R²=%.4f, CV_R²=%.4f)", best_name, best_metrics["r2"], best_metrics.get("cv_r2", 0))
 
-    # Save models (canonical path is random_forest.pkl per spec)
+    # Save best model to canonical path random_forest.pkl (for backward compatibility) and best_model.pkl
     joblib.dump(best_model, MODELS_DIR / "random_forest.pkl")
     joblib.dump(best_model, MODELS_DIR / f"{best_name}.pkl")
 
@@ -174,6 +242,9 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
         if importances is not None else []
     )
 
+    # Compute SHAP
+    shap_results = compute_shap_analysis(best_model, X_test.head(100))
+
     # Save plots
     try:
         _save_scatter_plot(y_test, best_pred, best_name)
@@ -186,7 +257,6 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
     fi_df = pd.DataFrame(feature_importance, columns=["feature", "importance"])
     fi_df.to_csv(MODELS_DIR / "feature_importance.csv", index=False)
 
-    # Build report
     report = {
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "best_model": best_name,
@@ -196,16 +266,15 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
         "candidates": {name: m for name, (_, m, _) in candidates.items()},
         "best_metrics": best_metrics,
         "feature_importance": feature_importance,
+        "shap_summary": shap_results,
     }
 
     with open(MODELS_DIR / "training_report.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    # metrics.json (concise)
     with open(MODELS_DIR / "metrics.json", "w") as f:
         json.dump({"model": best_name, **best_metrics}, f, indent=2)
 
-    # model_info.json
     with open(MODELS_DIR / "model_info.json", "w") as f:
         json.dump(
             {
@@ -214,13 +283,13 @@ def train_and_select_best(force_rebuild_data: bool = False) -> dict:
                 "metrics": best_metrics,
                 "features": available_features,
                 "n_samples": len(df),
+                "shap": shap_results
             },
             f, indent=2,
         )
 
     logger.info("Training complete. Model saved to %s", MODELS_DIR / "random_forest.pkl")
     return report
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

@@ -4,15 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useLocation } from "../context/LocationContext.jsx";
 import { getBadgeClass } from "../components/AqiCard.jsx";
 
-function healthAdvisory(aqi) {
-  if (aqi == null) return { text: "AQI data unavailable.", icon: "⚪" };
-  if (aqi <= 50) return { text: "Air quality is excellent. Safe for all outdoor recreational activities.", icon: "🟢" };
-  if (aqi <= 100) return { text: "Satisfactory. Sensitive individuals should consider reducing heavy outdoor exertion.", icon: "🟡" };
-  if (aqi <= 200) return { text: "Moderate. Sensitive groups may experience health symptoms; outdoor exertion should be limited.", icon: "🟠" };
-  if (aqi <= 300) return { text: "Poor. Avoid prolonged outdoor exertion. Wearing an N95 mask outdoors is recommended.", icon: "🔴" };
-  if (aqi <= 400) return { text: "Very Poor. Severe risk of respiratory issues. Avoid outdoor activities and keep windows shut.", icon: "🟤" };
-  return { text: "Severe. Emergency conditions. Avoid all outdoor activity. Use high-efficiency air purifiers indoors.", icon: "🟣" };
-}
+const LANGUAGES = ["English", "Hindi", "Bengali", "Assamese"];
 
 export default function CitizenPortal() {
   const { location } = useLocation();
@@ -24,11 +16,21 @@ export default function CitizenPortal() {
   const [coords, setCoords] = useState(null);
   const [status, setStatus] = useState("");
   const [loadingCoords, setLoadingCoords] = useState(false);
+  
+  const [language, setLanguage] = useState("English");
+  const [advisoryData, setAdvisoryData] = useState(null);
 
   useEffect(() => {
-    api.currentAqi(location).then(setAqi).catch(() => {});
+    api.currentAqi(location).then((data) => {
+      setAqi(data);
+      fetch(`/api/intelligence/health-advisory?aqi=${data?.aqi || 245}&language=${language}`)
+        .then((r) => r.json())
+        .then((ad) => setAdvisoryData(ad))
+        .catch(() => {});
+    }).catch(() => {});
+
     if (user) api.myReports().then(setReports).catch(() => {});
-  }, [user, location]);
+  }, [user, location, language]);
 
   function useMyLocation() {
     setLoadingCoords(true);
@@ -79,29 +81,55 @@ export default function CitizenPortal() {
     }
   }
 
-  const advisory = healthAdvisory(aqi?.aqi);
-
   return (
-    <div className="page animate-in">
-      <header className="page-header">
-        <h1>Citizen Portal</h1>
-        <p>Report environmental incidents directly to municipal planners and access current health guidelines.</p>
+    <div className="page animate-in" style={{ paddingBottom: 40 }}>
+      <header className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>Citizen Health & Incident Portal</h1>
+          <p>Demographic-specific Health Advisories (English, Hindi, Bengali, Assamese) & Pollution Incident Filing.</p>
+        </div>
+
+        {/* Language Switcher */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: "0.85rem", fontWeight: 700 }}>🌐 Advisory Language:</span>
+          <select 
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            style={{ padding: "6px 14px", borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border-strong)", color: "var(--text-main)", fontWeight: 700 }}
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang} value={lang}>{lang}</option>
+            ))}
+          </select>
+        </div>
       </header>
 
-      {/* Health Advisory Banner */}
-      <section className="advisory-banner">
-        <div className="advisory-icon">{advisory.icon}</div>
-        <div>
-          <div className="advisory-title">
-            Health Advisory {aqi && (
-              <span className={`badge ${getBadgeClass(aqi.aqi)}`} style={{ marginLeft: 8 }}>
-                AQI {Math.round(aqi.aqi)}
-              </span>
-            )}
+      {/* Demographic Health Advisory Cards */}
+      {advisoryData && (
+        <section className="card" style={{ padding: 24, marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>
+              🏥 Local Ward Health Advisory ({language})
+            </h2>
+            <span style={{ padding: "4px 12px", borderRadius: 12, background: `${advisoryData.color}22`, color: advisoryData.color, fontWeight: 800, fontSize: "0.85rem" }}>
+              {advisoryData.cpcb_category} (AQI {advisoryData.current_aqi})
+            </span>
           </div>
-          <div className="advisory-text">{advisory.text}</div>
-        </div>
-      </section>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+            {Object.entries(advisoryData.advisories || {}).map(([group, text]) => (
+              <div key={group} style={{ padding: 16, borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: "0.8rem", textTransform: "uppercase", color: "var(--accent)", fontWeight: 800, marginBottom: 4 }}>
+                  {group.replace(/_/g, " ")}
+                </div>
+                <p style={{ fontSize: "0.88rem", color: "var(--text-main)", margin: 0, lineHeight: 1.5 }}>
+                  {text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="forecast-grid">
         {/* Pollution Reporting Form */}
@@ -114,7 +142,7 @@ export default function CitizenPortal() {
               <label className="form-label">Incident Description</label>
               <textarea
                 className="form-input"
-                placeholder="Describe what you are seeing (e.g. open garbage burning, thick smoke emission, industrial dump)…"
+                placeholder="Describe what you are seeing (e.g. open garbage burning, thick smoke emission, industrial dump)..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
@@ -140,7 +168,7 @@ export default function CitizenPortal() {
                   onClick={useMyLocation}
                   disabled={loadingCoords}
                 >
-                  📍 {loadingCoords ? "Locating…" : "Use My GPS Location"}
+                  📍 {loadingCoords ? "Locating..." : "Use My GPS Location"}
                 </button>
                 {coords && (
                   <span className="location-coords">
@@ -183,18 +211,12 @@ export default function CitizenPortal() {
                   resolved: "badge-good",
                   rejected: "badge-vpoor"
                 };
-                const statusLabels = {
-                  submitted: "SUBMITTED",
-                  under_review: "UNDER REVIEW",
-                  resolved: "RESOLVED",
-                  rejected: "REJECTED"
-                };
                 return (
                   <li className="report-item" key={r._id}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span className={`badge ${statusColors[r.status] || "badge-info"}`} style={{ fontSize: "0.7rem", fontWeight: 800 }}>
-                          {statusLabels[r.status] || r.status.toUpperCase()}
+                          {r.status.toUpperCase()}
                         </span>
                         <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                           {new Date(r.createdAt).toLocaleDateString()}
@@ -203,11 +225,6 @@ export default function CitizenPortal() {
                       <div className="report-desc">{r.description}</div>
                       <div className="report-meta">
                         📍 Coordinates: {r.lat.toFixed(4)}, {r.lon.toFixed(4)}
-                        {r.imageUrl && (
-                          <span style={{ marginLeft: 8 }}>
-                            · <a href={r.imageUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "underline" }}>View Photo</a>
-                          </span>
-                        )}
                       </div>
                     </div>
                   </li>

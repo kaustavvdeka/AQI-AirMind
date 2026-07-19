@@ -5,9 +5,11 @@ import { useLocation } from "../context/LocationContext.jsx";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/map",       label: "Map",       icon: "🗺️" },
+  { to: "/map",       label: "GIS Map",   icon: "🗺️" },
   { to: "/satellite", label: "Satellite", icon: "🛰️" },
   { to: "/prediction",label: "Forecast",  icon: "🔮" },
+  { to: "/multi-city",label: "Multi-City",icon: "🌆" },
+  { to: "/simulator", label: "Simulator", icon: "🎛️" },
   { to: "/citizen",   label: "Citizen",   icon: "👥" },
 ];
 

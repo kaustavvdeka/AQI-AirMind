@@ -18,6 +18,7 @@ import predictionRoutes from "./routes/prediction.js";
 import reportsRoutes from "./routes/reports.js";
 import historyRoutes from "./routes/history.js";
 import recommendationsRoutes from "./routes/recommendations.js";
+import intelligenceRoutes from "./routes/intelligence.js";
 
 // Load the shared .env from the monorepo root (../../.env from src/), so
 // backend and ai read the exact same secrets — no duplicated keys.
@@ -43,6 +44,7 @@ app.use("/api/prediction", predictionRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/history", historyRoutes);
 app.use("/api/recommendations", recommendationsRoutes);
+app.use("/api/intelligence", intelligenceRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

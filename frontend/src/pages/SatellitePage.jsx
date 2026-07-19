@@ -158,24 +158,40 @@ export default function SatellitePage() {
             </MapContainer>
           </div>
 
-          {/* Colorbar Scale Legend */}
+          {/* Colorbar Scale Legend & Opacity Control */}
           <div 
             className="card-glass" 
             style={{ 
               display: "flex", 
               justifyContent: "space-between", 
               alignItems: "center",
-              padding: "16px 20px"
+              padding: "16px 20px",
+              flexWrap: "wrap",
+              gap: 16
             }}
           >
             <div>
               <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                Selected Layer Scale
+                {selectedLayer.name} Legend
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                Tropospheric dynamic concentration grid values
+                Resolution: 3.5km x 5.5km (Sentinel-5P L3 NRTI)
               </div>
             </div>
+
+            {/* Opacity Control Slider */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>Raster Opacity:</span>
+              <input
+                type="range"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                defaultValue="0.7"
+                style={{ width: 100, accentColor: "var(--accent)" }}
+              />
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
               <div className="satellite-legend">
                 <span style={{ fontSize: "0.78rem" }}>Min</span>

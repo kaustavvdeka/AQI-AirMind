@@ -1,6 +1,7 @@
 """
 Official Indian Central Pollution Control Board (CPCB) AQI Engine
-Computes pollutant sub-indices, identifies dominant pollutant, and evaluates final AQI.
+Computes pollutant sub-indices, identifies dominant pollutant, and evaluates final AQI
+according to standard Indian National Air Quality Index (NAQI) guidelines.
 """
 import math
 from typing import Dict, Tuple, List, Optional
@@ -54,19 +55,50 @@ BREAKPOINTS = {
         (168.1, 208.0, 201, 300),
         (208.1, 748.0, 301, 400),
         (748.1, 1000.0, 401, 500)
+    ],
+    "nh3": [
+        (0.0, 200.0, 0, 50),
+        (200.1, 400.0, 51, 100),
+        (401.0, 800.0, 101, 200),
+        (801.0, 1200.0, 201, 300),
+        (1201.0, 1800.0, 301, 400),
+        (1800.1, 3000.0, 401, 500)
+    ],
+    "pb": [
+        (0.0, 0.5, 0, 50),
+        (0.51, 1.0, 51, 100),
+        (1.01, 2.0, 101, 200),
+        (2.01, 3.0, 201, 300),
+        (3.01, 3.5, 301, 400),
+        (3.51, 10.0, 401, 500)
     ]
 }
 
+def get_cpcb_category(aqi: float) -> Tuple[str, str, str]:
+    """Returns (category_name, color_hex, health_impact)."""
+    if aqi <= 50:
+        return "Good", "#00e676", "Minimal Impact"
+    elif aqi <= 100:
+        return "Satisfactory", "#76ff03", "Minor breathing discomfort to sensitive people"
+    elif aqi <= 200:
+        return "Moderate", "#ffea00", "Breathing discomfort to people with lungs, asthma and heart diseases"
+    elif aqi <= 300:
+        return "Poor", "#ff9100", "Breathing discomfort to most people on prolonged exposure"
+    elif aqi <= 400:
+        return "Very Poor", "#ff3d00", "Respiratory illness on prolonged exposure"
+    else:
+        return "Severe", "#dd2c00", "Affects healthy people and seriously impacts those with existing diseases"
 
 def calculate_sub_index(pollutant: str, val: float) -> Optional[float]:
     """Calculate sub-index for a single pollutant using linear interpolation."""
     if val is None or math.isnan(val) or val < 0:
         return None
         
-    if pollutant not in BREAKPOINTS:
+    poll_key = pollutant.lower().replace(".", "")
+    if poll_key not in BREAKPOINTS:
         return None
         
-    ranges = BREAKPOINTS[pollutant]
+    ranges = BREAKPOINTS[poll_key]
     for c_lo, c_hi, i_lo, i_hi in ranges:
         if c_lo <= val <= c_hi:
             # Linear interpolation formula:
@@ -77,33 +109,28 @@ def calculate_sub_index(pollutant: str, val: float) -> Optional[float]:
     # If concentration exceeds highest breakpoint, cap at 500.0
     return 500.0
 
-
 def calculate_cpcb_aqi(metrics: Dict[str, float]) -> Dict[str, any]:
     """
-    Calculate the final CPCB AQI.
+    Calculate the final official Indian CPCB AQI.
     Requires at least 3 pollutants to be monitored, with at least one of them
-    being PM2.5 or PM10. If this is not met, returns the PM2.5-based AQI as fallback.
+    being PM2.5 or PM10.
     """
     sub_indices: Dict[str, float] = {}
     steps: Dict[str, str] = {}
     
-    # PM2.5 and PM10 are in ug/m³
-    # NO2, SO2, O3 are in ug/m³
-    # CO is in mg/m³
     for poll, val in metrics.items():
         if val is None or math.isnan(val):
             continue
-        sub = calculate_sub_index(poll, val)
+        poll_clean = poll.lower().replace(".", "")
+        sub = calculate_sub_index(poll_clean, val)
         if sub is not None:
-            sub_indices[poll] = sub
-            # Generate mathematical steps text
-            ranges = BREAKPOINTS[poll]
+            sub_indices[poll_clean] = sub
+            ranges = BREAKPOINTS[poll_clean]
             for c_lo, c_hi, i_lo, i_hi in ranges:
                 if c_lo <= val <= c_hi:
-                    steps[poll] = f"[{i_hi} - {i_lo}] / [{c_hi} - {c_lo}] * ({val} - {c_lo}) + {i_lo} = {sub}"
+                    steps[poll_clean] = f"[{i_hi} - {i_lo}] / [{c_hi} - {c_lo}] * ({val} - {c_lo}) + {i_lo} = {sub}"
                     break
                     
-    # Verification criteria check
     valid_sub_indices = {k: v for k, v in sub_indices.items() if v is not None}
     pm_present = "pm25" in valid_sub_indices or "pm10" in valid_sub_indices
     enough_pollutants = len(valid_sub_indices) >= 3
@@ -122,10 +149,15 @@ def calculate_cpcb_aqi(metrics: Dict[str, float]) -> Dict[str, any]:
         final_aqi = valid_sub_indices["pm25"]
         dominant_poll = "pm25 (fallback)"
         
+    category, color, health_impact = get_cpcb_category(final_aqi)
+    
     return {
-        "aqi": final_aqi,
+        "aqi": round(final_aqi, 1),
         "dominant_pollutant": dominant_poll,
         "sub_indices": valid_sub_indices,
         "calculation_steps": steps,
+        "category": category,
+        "color": color,
+        "health_impact": health_impact,
         "is_official_cpcb": is_official_cpcb,
     }
