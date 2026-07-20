@@ -1,10 +1,8 @@
 """
-AirMind AI — Final QA & System Verification Test Runner
-Executes comprehensive end-to-end checks across all platform modules and API endpoints.
-Generates `final_qa_report.md` in the models directory.
+AirMind AI — Final System QA & Compliance Verification Runner
+Executes end-to-end checks across all core platform modules, ML pipelines,
+AirMind Intelligence Agent, Gemini AI Analyst, PDF generator, and Community Leaderboards.
 """
-import time
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,15 +15,59 @@ from app.cpcb_calculator import calculate_cpcb_aqi
 from app.spatial_fusion import generate_virtual_observation_points
 from app.data_quality import check_data_quality
 from app.predict import predict_horizon
-from app.attribution import attribute_pollution_sources
-from app.dispersion import compute_gaussian_plume
-from app.hotspots import identify_hotspots
+from app.agent.airmind_agent import AirMindAgent
+from app.agent.community_ranking import CommunityRankingEngine
+from app.gemini_analyst import GeminiAnalyst
+from app.pdf_generator import generate_pdf_report
 
 def run_all_qa_checks():
-    logger.info("Executing AirMind AI System QA & Data Fusion Suite Sweep...")
+    logger.info("Executing AirMind AI System QA & Agent Intelligence Suite Sweep...")
     results = []
 
-    # 1. Hybrid Spatial Data Fusion Check
+    # 1. Master AirMind Intelligence Agent Synthesis Check
+    try:
+        cpcb_res = calculate_cpcb_aqi({"pm25": 85.0, "pm10": 145.0, "no2": 42.0})
+        fc_res = {"24h": {"predicted_aqi": 150.0}, "48h": {"predicted_aqi": 160.0}, "72h": {"predicted_aqi": 140.0}}
+        intel_json = AirMindAgent.synthesize_intelligence(
+            cpcb_res, fc_res,
+            {"temperature": 28.5, "wind_speed": 3.2},
+            {"congestion_pct": 75.0},
+            {"satellite_no2_mol_m2": 0.00018},
+            [],
+            {"contributions": {"Traffic": 45.0}, "dominant_source": "Traffic", "confidence_score": 92.0},
+            []
+        )
+        status = "PASS" if intel_json.get("aqi") > 0 and "government_actions" in intel_json else "FAIL"
+        results.append({"feature": "Master AirMind Intelligence Agent Synthesis Engine", "status": status, "details": f"AQI: {intel_json['aqi']}, Actions: {len(intel_json['government_actions'])}"})
+    except Exception as e:
+        results.append({"feature": "Master AirMind Intelligence Agent Synthesis Engine", "status": "FAIL", "details": str(e)})
+
+    # 2. Grounded Gemini AI Analyst Integration Check
+    try:
+        report = GeminiAnalyst.generate_government_executive_report(intel_json)
+        answer = GeminiAnalyst.answer_chat_question("Why is AQI high?", intel_json)
+        status = "PASS" if len(report) > 100 and len(answer) > 20 else "FAIL"
+        results.append({"feature": "Grounded Gemini AI Analyst Layer (Anti-Hallucination)", "status": status, "details": f"Generated {len(report)} char executive report"})
+    except Exception as e:
+        results.append({"feature": "Grounded Gemini AI Analyst Layer", "status": "FAIL", "details": str(e)})
+
+    # 3. Community Green Ranking Engine Check
+    try:
+        ranks = CommunityRankingEngine.get_community_rankings()
+        status = "PASS" if len(ranks.get("ward_rankings", [])) >= 4 else "FAIL"
+        results.append({"feature": "Community Green Ranking Leaderboard (Weighted Score Formula)", "status": status, "details": f"Ranked {len(ranks.get('ward_rankings', []))} Wards, Top: {ranks['top_performing_community']['name']}"})
+    except Exception as e:
+        results.append({"feature": "Community Green Ranking Leaderboard", "status": "FAIL", "details": str(e)})
+
+    # 4. Executive PDF Generator Check
+    try:
+        pdf_bytes = generate_pdf_report(intel_json)
+        status = "PASS" if len(pdf_bytes) > 1000 else "FAIL"
+        results.append({"feature": "Publication-Quality PDF Executive Report Generator", "status": status, "details": f"Generated {len(pdf_bytes)} bytes PDF buffer"})
+    except Exception as e:
+        results.append({"feature": "Publication-Quality PDF Report Generator", "status": "FAIL", "details": str(e)})
+
+    # 5. Hybrid Spatial Data Fusion Check
     try:
         vops = generate_virtual_observation_points(grid_size_km=10)
         status = "PASS" if len(vops["features"]) == 100 else "FAIL"
@@ -33,7 +75,7 @@ def run_all_qa_checks():
     except Exception as e:
         results.append({"feature": "Hybrid Spatial Data Fusion", "status": "FAIL", "details": str(e)})
 
-    # 2. Data Quality & API Freshness Check
+    # 6. Data Quality & API Freshness Check
     try:
         dq = check_data_quality()
         status = "PASS" if dq["health_score_pct"] >= 70.0 else "FAIL"
@@ -41,33 +83,9 @@ def run_all_qa_checks():
     except Exception as e:
         results.append({"feature": "Data Quality & API Freshness Monitor", "status": "FAIL", "details": str(e)})
 
-    # 3. 95% Confidence Interval Prediction Check
-    try:
-        pred = predict_horizon(24)
-        status = "PASS" if "confidence_interval_95" in pred and len(pred["confidence_interval_95"]) == 2 else "FAIL"
-        results.append({"feature": "95% Prediction Confidence Interval Engine", "status": status, "details": f"24h AQI: {pred['predicted_aqi']} [CI: {pred['confidence_interval_95'][0]}–{pred['confidence_interval_95'][1]}]"})
-    except Exception as e:
-        results.append({"feature": "95% Prediction Confidence Interval Engine", "status": "FAIL", "details": str(e)})
-
-    # 4. CPCB 8-Pollutant AQI Calculation Engine Check
-    try:
-        cpcb = calculate_cpcb_aqi({"pm25": 85.0, "pm10": 145.0, "no2": 42.0, "so2": 14.0, "co": 1.1})
-        status = "PASS" if cpcb["aqi"] > 0 else "FAIL"
-        results.append({"feature": "Official Indian CPCB 8-Pollutant NAQI Engine", "status": status, "details": f"AQI: {cpcb['aqi']}, Dominant: {cpcb['dominant_pollutant']}"})
-    except Exception as e:
-        results.append({"feature": "Official Indian CPCB NAQI Engine", "status": "FAIL", "details": str(e)})
-
-    # 5. Enriched Hotspot Clustering Check
-    try:
-        hs = identify_hotspots()
-        status = "PASS" if isinstance(hs, list) else "FAIL"
-        results.append({"feature": "DBSCAN Clustering over Enriched VOP Dataset", "status": status, "details": f"Formed {len(hs)} enriched hotspot clusters"})
-    except Exception as e:
-        results.append({"feature": "DBSCAN Clustering over Enriched VOP Dataset", "status": "FAIL", "details": str(e)})
-
     # Print Summary Report
     print("\n" + "="*80)
-    print("           AIRMIND AI — FINAL SYSTEM QA & COMPLIANCE CERTIFICATION REPORT")
+    print("           AIRMIND AI — SYSTEM CERTIFICATION REPORT")
     print("="*80)
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}\n")
 

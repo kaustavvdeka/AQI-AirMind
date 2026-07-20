@@ -1,14 +1,13 @@
 """
 AirMind AI — FastAPI Decision Intelligence Service
 Exposes AI prediction with 95% CIs, SHAP explainability, source attribution,
-Hybrid Spatial Data Fusion (VOPs), Data Quality Monitoring, Layered Fallbacks,
-Gaussian Plume dispersion modeling, GIS intelligence layers, enforcement recommendations,
-multi-city comparisons, citizen health advisories, and policy intervention simulations.
+Hybrid Spatial Data Fusion (VOPs), Data Quality Monitoring, AirMind Agent Synthesis,
+Gemini AI Analyst Layer, Executive PDF Report Generator, and Community Green Rankings.
 """
 import logging
 import threading
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -22,8 +21,8 @@ logger = logging.getLogger("airmind-ai")
 
 app = FastAPI(
     title="AirMind AI Decision Intelligence Platform",
-    version="2.1.0",
-    description="AI-Powered Urban Air Quality Intelligence Service for Smart City Intervention."
+    version="2.2.0",
+    description="AI-Powered Urban Environmental Decision Intelligence Service for Smart City Intervention."
 )
 
 app.add_middleware(
@@ -74,23 +73,28 @@ async def startup_event():
     t = threading.Thread(target=_auto_setup, daemon=True, name="airmind-setup")
     t.start()
 
-from app.predict import ModelNotTrainedError, load_model_info, predict_all_horizons, predict_horizon
+from app.predict import load_model_info, predict_all_horizons, predict_horizon
 from app.explain import explain_current_conditions
 from app.recommend_gemini import generate_recommendations
-from app.train import train_and_select_best
 from app.cpcb_calculator import calculate_cpcb_aqi
 from app.grid_prediction import generate_hyperlocal_grid
 from app.spatial_fusion import generate_virtual_observation_points
 from app.data_quality import check_data_quality
-from app.fallbacks import get_traffic_emissions, get_fire_spots, get_industrial_emission_probability
+from app.fallbacks import get_traffic_emissions, get_fire_spots
 from app.attribution import attribute_pollution_sources
 from app.hotspots import identify_hotspots
 from app.dispersion import compute_gaussian_plume
-from app.layers_engine import get_traffic_layer, get_industrial_layer, get_construction_layer, get_waste_burning_layer
+from app.layers_engine import get_industrial_layer, get_construction_layer
 from app.enforcement import generate_enforcement_recommendations
 from app.multi_city import get_multi_city_comparison
 from app.health_advisory import generate_health_advisory
 from app.simulator import simulate_interventions
+
+# AirMind Intelligence Agent Modules
+from app.agent.airmind_agent import AirMindAgent
+from app.agent.community_ranking import CommunityRankingEngine
+from app.gemini_analyst import GeminiAnalyst
+from app.pdf_generator import generate_pdf_report
 
 class CPCBRequest(BaseModel):
     pm25: Optional[float] = 85.0
@@ -107,9 +111,33 @@ class SimulationRequest(BaseModel):
     construction_ban: bool = False
     waste_burn_ban: bool = False
 
+class ChatRequest(BaseModel):
+    question: str
+
+def _build_current_intelligence_json(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
+    cpcb_res = calculate_cpcb_aqi({"pm25": 85.0, "pm10": 145.0, "no2": 42.0, "so2": 14.0, "co": 1.1})
+    fc_res = predict_all_horizons()
+    wx_res = {"temperature": 28.5, "humidity": 65.0, "wind_speed": 3.2, "wind_direction": 220.0}
+    tf_res = get_traffic_emissions(lat, lon)
+    sat_res = {"satellite_no2_mol_m2": 0.00018, "ndvi_index": 0.35, "active_fires_count": 1}
+    hs_res = identify_hotspots(center_lat=lat, center_lon=lon)
+    src_res = attribute_pollution_sources({"pm25": 85.0, "pm10": 145.0, "no2": 42.0}, wx_res)
+    reports = [{"status": "submitted"}, {"status": "under_review"}]
+
+    return AirMindAgent.synthesize_intelligence(
+        aqi_metrics=cpcb_res,
+        forecast_data=fc_res,
+        weather_data=wx_res,
+        traffic_data=tf_res,
+        satellite_data=sat_res,
+        hotspots_data=hs_res,
+        source_data=src_res,
+        reports_data=reports
+    )
+
 @app.get("/")
 def root():
-    return {"service": "AirMind AI Platform", "version": "2.1.0", "status": "running"}
+    return {"service": "AirMind AI Platform", "version": "2.2.0", "status": "running"}
 
 @app.get("/health")
 def health():
@@ -117,6 +145,38 @@ def health():
         status = dict(_startup_status)
     return {"status": "ok" if status["ready"] else "initializing", **status}
 
+# === AirMind Intelligence Agent Endpoints ===
+@app.get("/agent/intelligence-json")
+def agent_intelligence_json(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    return _build_current_intelligence_json(lat=lat, lon=lon)
+
+@app.get("/agent/explain-gemini")
+def agent_explain_gemini(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    intel_json = _build_current_intelligence_json(lat=lat, lon=lon)
+    report = GeminiAnalyst.generate_government_executive_report(intel_json)
+    return {"report": report, "intelligence_json": intel_json}
+
+@app.get("/agent/community-rankings")
+def agent_community_rankings():
+    return CommunityRankingEngine.get_community_rankings()
+
+@app.get("/agent/report/pdf")
+def agent_pdf_report(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    intel_json = _build_current_intelligence_json(lat=lat, lon=lon)
+    pdf_bytes = generate_pdf_report(intel_json)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=AirMind_Executive_Report.pdf"}
+    )
+
+@app.post("/agent/chat")
+def agent_chat(req: ChatRequest, lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    intel_json = _build_current_intelligence_json(lat=lat, lon=lon)
+    answer = GeminiAnalyst.answer_chat_question(req.question, intel_json)
+    return {"question": req.question, "answer": answer, "grounded_in_json": True}
+
+# === Platform Standard Endpoints ===
 @app.get("/data-quality")
 def data_quality_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
     return check_data_quality(lat=lat, lon=lon)

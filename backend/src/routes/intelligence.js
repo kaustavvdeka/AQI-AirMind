@@ -4,7 +4,7 @@ import { logger } from "../utils/logger.js";
 const router = express.Router();
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
 
-// Helper for proxying requests to AI service with error fallback
+// Helper for proxying requests to AI service with support for JSON and binary responses (e.g. PDF)
 async function proxyToAI(res, endpoint, method = "GET", data = null, params = {}) {
   try {
     const queryString = new URLSearchParams(params).toString();
@@ -16,6 +16,15 @@ async function proxyToAI(res, endpoint, method = "GET", data = null, params = {}
     if (data) options.body = JSON.stringify(data);
 
     const response = await fetch(url, options);
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("application/pdf")) {
+      const buffer = await response.arrayBuffer();
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", "attachment; filename=AirMind_Executive_Report.pdf");
+      return res.status(response.status).send(Buffer.from(buffer));
+    }
+
     const json = await response.json();
     return res.status(response.status).json(json);
   } catch (error) {
@@ -31,6 +40,11 @@ router.get("/grid-prediction", (req, res) => proxyToAI(res, "/grid-prediction", 
 router.get("/predict", (req, res) => proxyToAI(res, "/predict", "get", null, req.query));
 router.get("/spatial-fusion", (req, res) => proxyToAI(res, "/spatial-fusion", "get", null, req.query));
 router.get("/data-quality", (req, res) => proxyToAI(res, "/data-quality", "get", null, req.query));
+router.get("/agent/intelligence-json", (req, res) => proxyToAI(res, "/agent/intelligence-json", "get", null, req.query));
+router.get("/agent/explain-gemini", (req, res) => proxyToAI(res, "/agent/explain-gemini", "get", null, req.query));
+router.get("/agent/community-rankings", (req, res) => proxyToAI(res, "/agent/community-rankings", "get", null, req.query));
+router.get("/agent/report/pdf", (req, res) => proxyToAI(res, "/agent/report/pdf", "get", null, req.query));
+router.post("/agent/chat", (req, res) => proxyToAI(res, "/agent/chat", "post", req.body));
 router.get("/source-attribution", (req, res) => proxyToAI(res, "/source-attribution", "get", null, req.query));
 router.get("/dispersion", (req, res) => proxyToAI(res, "/dispersion", "get", null, req.query));
 router.get("/layers/traffic", (req, res) => proxyToAI(res, "/layers/traffic", "get", null, req.query));

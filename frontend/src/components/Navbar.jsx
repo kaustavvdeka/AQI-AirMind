@@ -10,6 +10,8 @@ const NAV_ITEMS = [
   { to: "/prediction",label: "Forecast",  icon: "🔮" },
   { to: "/multi-city",label: "Multi-City",icon: "🌆" },
   { to: "/simulator", label: "Simulator", icon: "🎛️" },
+  { to: "/rankings",  label: "Rankings",  icon: "🏆" },
+  { to: "/reports",   label: "Reports",   icon: "📄" },
   { to: "/citizen",   label: "Citizen",   icon: "👥" },
 ];
 
