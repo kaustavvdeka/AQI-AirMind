@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Circle, Polyline, Polygon, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Circle, Polyline, Polygon, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
 import { api } from "../api/client.js";
-import { getAqiClass, getAqiLabel, getBadgeClass } from "../components/AqiCard.jsx";
 import { useLocation } from "../context/LocationContext.jsx";
 
 function RecenterMap({ coords }) {
@@ -19,26 +18,20 @@ function RecenterMap({ coords }) {
 
 export default function MapPage() {
   const { location, coords, aqi } = useLocation();
-  const [stations, setStations] = useState([]);
-  const [gridData, setGridData] = useState(null);
+  const [vopGrid, setVopGrid] = useState(null);
   const [hotspots, setHotspots] = useState([]);
   const [dispersionData, setDispersionData] = useState(null);
   const [trafficLayer, setTrafficLayer] = useState(null);
   const [industryLayer, setIndustryLayer] = useState(null);
-  const [constructionLayer, setConstructionLayer] = useState(null);
-  const [wasteLayer, setWasteLayer] = useState(null);
   const [weather, setWeather] = useState(null);
   const [forecastHour, setForecastHour] = useState(0);
 
   const [layers, setLayers] = useState({
-    grid: true,
+    vopGrid: true,
     hotspots: true,
     dispersion: true,
     traffic: true,
     industry: true,
-    construction: true,
-    waste: true,
-    stations: true,
   });
   const [loading, setLoading] = useState(true);
 
@@ -49,34 +42,22 @@ export default function MapPage() {
         const wx = await api.liveWeather(coords.lat, coords.lon);
         setWeather(wx);
 
-        // Fetch Intelligence API layers
-        const [gRes, hRes, dRes, tRes, iRes, cRes, wRes] = await Promise.allSettled([
-          fetch(`/api/intelligence/grid-prediction?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
-          fetch(`/api/intelligence/source-attribution`).then((r) => r.json()),
+        const [vopRes, dRes, tRes, iRes] = await Promise.allSettled([
+          fetch(`/api/intelligence/spatial-fusion?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
           fetch(`/api/intelligence/dispersion?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
           fetch(`/api/intelligence/layers/traffic?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
           fetch(`/api/intelligence/layers/industry?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
-          fetch(`/api/intelligence/layers/construction?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
-          fetch(`/api/intelligence/layers/waste-burning?lat=${coords.lat}&lon=${coords.lon}`).then((r) => r.json()),
         ]);
 
-        if (gRes.status === "fulfilled") setGridData(gRes.value);
+        if (vopRes.status === "fulfilled") setVopGrid(vopRes.value);
         if (dRes.status === "fulfilled") setDispersionData(dRes.value);
         if (tRes.status === "fulfilled") setTrafficLayer(tRes.value);
         if (iRes.status === "fulfilled") setIndustryLayer(iRes.value);
-        if (cRes.status === "fulfilled") setConstructionLayer(cRes.value);
-        if (wRes.status === "fulfilled") setWasteLayer(wRes.value);
 
-        const ws = wx?.windSpeed || 3.2;
-        const wd = wx?.windDeg || 180.0;
-        const hs = await api.hotspots(ws, wd);
+        const ws = wx?.windSpeed || 3.8;
+        const wd = wx?.windDeg || 220.0;
+        const hs = await api.hotspots(ws, wd, coords.lat, coords.lon);
         setHotspots(hs);
-
-        setStations([
-          { location: location, lat: coords.lat, lon: coords.lon, aqi: aqi?.aqi || 145, pm25: aqi?.pm25 || 65 },
-          { location: "Jalukbari Transit Hub", lat: coords.lat + 0.015, lon: coords.lon - 0.04, aqi: 185, pm25: 88 },
-          { location: "Khanapara Industrial Gate", lat: coords.lat - 0.03, lon: coords.lon + 0.08, aqi: 240, pm25: 115 },
-        ]);
       } catch (err) {
         console.error("GIS Layer Load Error:", err);
       } finally {
@@ -90,40 +71,31 @@ export default function MapPage() {
     setLayers((l) => ({ ...l, [type]: !l[type] }));
   }
 
-  function getAqiColor(val) {
-    if (val <= 50) return "#00e676";
-    if (val <= 100) return "#76ff03";
-    if (val <= 200) return "#ffea00";
-    if (val <= 300) return "#ff9100";
-    if (val <= 400) return "#ff3d00";
-    return "#dd2c00";
-  }
-
   return (
     <div className="page animate-in" style={{ paddingBottom: 40 }}>
       <header className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>GIS Air Quality Command Center</h1>
-          <p>Hyperlocal 1 km × 1 km Prediction Grid, DBSCAN Hotspots, Dispersion Physics & Multi-Layer Intelligence.</p>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>GIS Hybrid Spatial Command Center</h1>
+          <p>Fusing Ground Sensors, Sentinel-5P Satellite Rasters, Road Density, and Virtual Observation Points (VOPs).</p>
         </div>
         <span className="badge badge-info" style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
-          📍 Centered Location: {location} ({coords.lat.toFixed(4)}°N, {coords.lon.toFixed(4)}°E)
+          📍 Centered: {location} ({coords.lat.toFixed(4)}°N, {coords.lon.toFixed(4)}°E)
         </span>
       </header>
 
       {/* Layer Toggle Bar */}
       <div className="map-controls" style={{ marginBottom: 16, background: "rgba(15, 20, 28, 0.85)", padding: "12px 18px", borderRadius: 12, border: "1px solid var(--border)" }}>
         <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)", marginBottom: 8 }}>
-          🗺️ Intelligence GIS Layers:
+          🗺️ GIS Fusion Layers:
         </div>
         <div className="map-layer-controls" style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
-            <input type="checkbox" checked={layers.grid} onChange={() => toggle("grid")} />
-            🔲 1km Grid Prediction
+            <input type="checkbox" checked={layers.vopGrid} onChange={() => toggle("vopGrid")} />
+            🌐 Virtual Observation Points (VOP Grid)
           </label>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
             <input type="checkbox" checked={layers.hotspots} onChange={() => toggle("hotspots")} />
-            🔥 DBSCAN Hotspots
+            🔥 DBSCAN Hotspots (Enriched)
           </label>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
             <input type="checkbox" checked={layers.dispersion} onChange={() => toggle("dispersion")} />
@@ -137,21 +109,13 @@ export default function MapPage() {
             <input type="checkbox" checked={layers.industry} onChange={() => toggle("industry")} />
             🏭 Industrial Stacks
           </label>
-          <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
-            <input type="checkbox" checked={layers.construction} onChange={() => toggle("construction")} />
-            🏗️ Construction Sites
-          </label>
-          <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
-            <input type="checkbox" checked={layers.waste} onChange={() => toggle("waste")} />
-            🔥 Waste Burning (FIRMS)
-          </label>
         </div>
       </div>
 
       {loading ? (
         <div className="loading-state">
           <div className="spinner"></div>
-          <p>Rendering Hyperlocal GIS Layers & Satellite Grids...</p>
+          <p>Fusing Multi-Source Spatial Layers & VOP Grids...</p>
         </div>
       ) : (
         <div className="map-container" style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: "1px solid var(--border-strong)" }}>
@@ -162,35 +126,40 @@ export default function MapPage() {
             />
             <RecenterMap coords={coords} />
 
-            {/* 1. Hyperlocal 1 km x 1 km Prediction Grid Polygons */}
-            {layers.grid && gridData?.features?.map((f) => {
+            {/* 1. Virtual Observation Points (VOP Grid Polygons) */}
+            {layers.vopGrid && vopGrid?.features?.map((f) => {
               const props = f.properties;
-              const aqiVal = forecastHour === 24 ? props.aqi_24h : (forecastHour === 48 ? props.aqi_48h : (forecastHour === 72 ? props.aqi_72h : props.aqi_current));
               return (
                 <Polygon
                   key={f.id}
                   positions={f.geometry.coordinates[0].map(([lon, lat]) => [lat, lon])}
                   pathOptions={{
                     fillColor: props.color,
-                    fillOpacity: 0.25,
+                    fillOpacity: 0.22,
                     color: props.color,
                     weight: 1,
                   }}
                 >
                   <Popup>
-                    <div style={{ minWidth: 180 }}>
-                      <h4 style={{ fontSize: "0.88rem", margin: "0 0 4px 0", color: props.color }}>Cell {props.cell_id}</h4>
-                      <div>AQI ({forecastHour === 0 ? "Current" : `+${forecastHour}h`}): <strong>{aqiVal}</strong></div>
-                      <div>Category: <strong>{props.category}</strong></div>
-                      <div>Traffic Density: <strong>{props.traffic_density_pct}%</strong></div>
-                      <div>Satellite NO₂: <strong>{props.satellite_no2} mol/m²</strong></div>
+                    <div style={{ minWidth: 200 }}>
+                      <h4 style={{ fontSize: "0.88rem", margin: "0 0 4px 0", color: props.color }}>Virtual Node {props.vop_id}</h4>
+                      <div>AQI: <strong>{props.aqi} ({props.category})</strong></div>
+                      <div>Dominant: <strong>{props.dominant_pollutant}</strong></div>
+                      <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "6px 0" }} />
+                      <div style={{ fontSize: "0.78rem" }}>
+                        <div>Road Density: <strong>{props.road_density_km} km/km²</strong></div>
+                        <div>Built-Up Ratio: <strong>{props.built_up_ratio}</strong></div>
+                        <div>NDVI Canopy: <strong>{props.ndvi_index}</strong></div>
+                        <div>Satellite NO₂: <strong>{props.satellite_no2_mol_m2} mol/m²</strong></div>
+                        <div>Pop Density: <strong>{props.population_density_sqkm} /km²</strong></div>
+                      </div>
                     </div>
                   </Popup>
                 </Polygon>
               );
             })}
 
-            {/* 2. DBSCAN Hotspots */}
+            {/* 2. DBSCAN Hotspots over Enriched VOP Dataset */}
             {layers.hotspots && hotspots.map((h, idx) => (
               <Circle
                 key={`hs-${idx}`}
@@ -200,9 +169,10 @@ export default function MapPage() {
               >
                 <Popup>
                   <div>
-                    <h4 style={{ margin: 0, color: "#ff3d00" }}>🔥 Hotspot Cluster {h.cluster_id + 1}</h4>
-                    <div>Mean AQI: <strong>{h.mean_aqi}</strong></div>
-                    <div>Confidence: <strong>{h.confidence_score}%</strong></div>
+                    <h4 style={{ margin: 0, color: "#ff3d00" }}>🔥 Enriched Hotspot Cluster {h.cluster_id + 1}</h4>
+                    <div>Mean Cluster AQI: <strong>{h.mean_aqi}</strong></div>
+                    <div>Confidence Score: <strong>{h.confidence_score}%</strong></div>
+                    <div>Contributing VOP Nodes: <strong>{h.sample_count}</strong></div>
                   </div>
                 </Popup>
               </Circle>
@@ -218,28 +188,28 @@ export default function MapPage() {
                   <div>
                     <h4 style={{ margin: 0, color: "#ffea00" }}>💨 Gaussian Plume Dispersion</h4>
                     <div>Peak Ground Conc: <strong>{dispersionData.summary.peak_concentration_ug_m3} µg/m³</strong></div>
-                    <div>Reach: <strong>{dispersionData.summary.max_reach_km} km</strong></div>
+                    <div>Max Reach: <strong>{dispersionData.summary.max_reach_km} km</strong></div>
                   </div>
                 </Popup>
               </Polygon>
             )}
 
             {/* 4. Traffic Layer */}
-            {layers.traffic && trafficLayer?.segments?.map((seg) => (
-              <Polyline
-                key={seg.segment_id}
-                positions={seg.coordinates}
-                pathOptions={{ color: seg.congestion_percentage > 80 ? "#ff3d00" : "#ffea00", weight: 5, opacity: 0.85 }}
+            {layers.traffic && trafficLayer?.congestion_pct && (
+              <CircleMarker
+                center={[coords.lat + 0.01, coords.lon + 0.015]}
+                radius={16}
+                pathOptions={{ fillColor: "#ffea00", fillOpacity: 0.8, color: "#ffffff" }}
               >
                 <Popup>
                   <div>
-                    <h4>🚗 {seg.corridor_name}</h4>
-                    <div>Congestion: <strong>{seg.congestion_percentage}%</strong></div>
-                    <div>Avg Speed: <strong>{seg.avg_speed_kmh} km/h</strong></div>
+                    <h4>🚗 Traffic Emissions ({trafficLayer.source})</h4>
+                    <div>Congestion: <strong>{trafficLayer.congestion_pct}%</strong></div>
+                    <div>Emission Rate: <strong>{trafficLayer.emission_score_ug_m3} µg/m³</strong></div>
                   </div>
                 </Popup>
-              </Polyline>
-            ))}
+              </CircleMarker>
+            )}
 
             {/* 5. Industrial Stack Layer */}
             {layers.industry && industryLayer?.facilities?.map((f) => (
@@ -258,66 +228,7 @@ export default function MapPage() {
                 </Popup>
               </CircleMarker>
             ))}
-
-            {/* 6. Construction Site Layer */}
-            {layers.construction && constructionLayer?.sites?.map((s) => (
-              <Circle
-                key={s.site_id}
-                center={s.coordinates}
-                radius={s.buffer_radius_meters}
-                pathOptions={{ fillColor: "#ff9100", fillOpacity: 0.3, color: "#ff9100", weight: 2, dashArray: "2, 4" }}
-              >
-                <Popup>
-                  <div>
-                    <h4>🏗️ {s.project_name}</h4>
-                    <div>Dust Severity: <strong>{s.dust_severity}</strong></div>
-                    <div>PM10 Emission: <strong>{s.pm10_fugitive_emission} µg/m³</strong></div>
-                  </div>
-                </Popup>
-              </Circle>
-            ))}
-
-            {/* 7. Waste Burning Layer (NASA FIRMS) */}
-            {layers.waste && wasteLayer?.incidents?.map((inc) => (
-              <CircleMarker
-                key={inc.incident_id}
-                center={inc.coordinates}
-                radius={14}
-                pathOptions={{ fillColor: "#dd2c00", fillOpacity: 0.95, color: "#ffea00", weight: 3 }}
-              >
-                <Popup>
-                  <div>
-                    <h4>🔥 NASA FIRMS Thermal Anomaly</h4>
-                    <div>Location: <strong>{inc.location_name}</strong></div>
-                    <div>FRP: <strong>{inc.fire_radiative_power_mw} MW</strong></div>
-                    <div>Confidence: <strong>{inc.detection_confidence_pct}%</strong></div>
-                  </div>
-                </Popup>
-              </CircleMarker>
-            ))}
           </MapContainer>
-
-          {/* Time Slider Controls */}
-          <div style={{ position: "absolute", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 1000, width: "80%", maxWidth: 480, padding: "12px 24px", borderRadius: 100, background: "rgba(10, 14, 22, 0.95)", border: "1px solid var(--border-strong)", textAlign: "center" }}>
-            <div style={{ fontSize: "0.8rem", fontWeight: 700, marginBottom: 6, color: "var(--accent)" }}>
-              🔮 1km Grid Prediction Horizon: +{forecastHour} Hours
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={72}
-              step={24}
-              value={forecastHour}
-              onChange={(e) => setForecastHour(Number(e.target.value))}
-              style={{ width: "100%", cursor: "pointer" }}
-            />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 4 }}>
-              <span>Live Now</span>
-              <span>+24 Hours</span>
-              <span>+48 Hours</span>
-              <span>+72 Hours</span>
-            </div>
-          </div>
         </div>
       )}
     </div>

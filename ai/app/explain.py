@@ -66,7 +66,7 @@ def explain_current_conditions() -> dict:
         "wind_speed": float(row.get("wind_speed", 3.0)),
         "humidity": float(row.get("humidity", 60.0))
     }
-    contributions, explanation = attribute_pollution_sources(metrics, weather)
+    attribution_result = attribute_pollution_sources(metrics, weather)
 
     return {
         "timestamp": row["datetime"].isoformat() if hasattr(row["datetime"], "isoformat") else str(row["datetime"]),
@@ -79,8 +79,10 @@ def explain_current_conditions() -> dict:
             "is_official_cpcb": cpcb_result["is_official_cpcb"]
         },
         "source_attribution": {
-            "contributions": contributions,
-            "explanation": explanation
+            "contributions": attribution_result.get("contributions", {}),
+            "dominant_source": attribution_result.get("dominant_source", ""),
+            "confidence_score": attribution_result.get("confidence_score", 0),
+            "explanation": attribution_result.get("explanation", "")
         },
         "active_drivers": drivers,
         "global_feature_importance": global_feature_importance()[:8],

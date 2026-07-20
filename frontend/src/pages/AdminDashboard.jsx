@@ -8,6 +8,7 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [reports, setReports] = useState([]);
   const [enforcements, setEnforcements] = useState([]);
+  const [dataQuality, setDataQuality] = useState(null);
   const [trainStatus, setTrainStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [training, setTraining] = useState(false);
@@ -18,13 +19,15 @@ export default function AdminDashboard() {
     async function loadData() {
       setLoading(true);
       try {
-        const [reportsData, enfData] = await Promise.allSettled([
+        const [reportsData, enfData, dqData] = await Promise.allSettled([
           api.allReports(),
           fetch("/api/intelligence/enforcement").then((r) => r.json()),
+          fetch("/api/intelligence/data-quality").then((r) => r.json()),
         ]);
 
         if (reportsData.status === "fulfilled") setReports(reportsData.value);
         if (enfData.status === "fulfilled") setEnforcements(enfData.value);
+        if (dqData.status === "fulfilled") setDataQuality(dqData.value);
       } finally {
         setLoading(false);
       }
@@ -71,8 +74,40 @@ export default function AdminDashboard() {
     <div className="page animate-in" style={{ paddingBottom: 40 }}>
       <header className="page-header">
         <h1>Smart City Enforcement & Admin Control Panel</h1>
-        <p>AI Enforcement Recommendations, ML Model Benchmarking, and Municipal Incident Dispatch.</p>
+        <p>System Data Quality Health, AI Enforcement Dispatches, ML Benchmarking, and Incident Reports.</p>
       </header>
+
+      {/* Data Quality & API Freshness Monitor */}
+      {dataQuality && (
+        <section className="card" style={{ padding: 24, marginBottom: 28 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h2 style={{ fontSize: "1.2rem", fontWeight: 800, margin: 0 }}>
+              🛡️ System Data Quality & API Freshness Monitor
+            </h2>
+            <span style={{ padding: "4px 14px", borderRadius: 12, background: dataQuality.overall_status === "HEALTHY" ? "rgba(0,230,118,0.15)" : "rgba(255,145,0,0.15)", color: dataQuality.overall_status === "HEALTHY" ? "#00e676" : "#ff9100", fontWeight: 800, fontSize: "0.85rem" }}>
+              {dataQuality.overall_status} ({dataQuality.health_score_pct}% HEALTH SCORE)
+            </span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginBottom: 16 }}>
+            {dataQuality.checks?.map((chk, idx) => (
+              <div key={idx} style={{ padding: 14, borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: "0.82rem", fontWeight: 700 }}>{chk.name}</span>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 800, color: chk.status === "PASS" ? "#00e676" : "#ff3d00" }}>{chk.status}</span>
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4 }}>{chk.details}</div>
+              </div>
+            ))}
+          </div>
+
+          {dataQuality.alerts?.length > 0 && (
+            <div style={{ padding: 12, borderRadius: 8, background: "rgba(255,145,0,0.1)", border: "1px solid rgba(255,145,0,0.3)", fontSize: "0.8rem", color: "#ff9100" }}>
+              <strong>System Alerts:</strong> {dataQuality.alerts.join(" | ")}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* AI Enforcement Recommendations Section */}
       <section className="card" style={{ padding: 24, marginBottom: 28 }}>

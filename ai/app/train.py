@@ -64,9 +64,9 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 FEATURE_COLUMNS = [
     # Core pollutants
     "pm25", "pm10", "no2", "so2", "co", "o3",
-    # Weather
+    # Weather / Meteorology
     "temperature", "humidity", "wind_speed", "rainfall", "pressure",
-    # Calendar
+    # Calendar / Temporal
     "hour", "day", "month", "dayofweek", "season", "is_weekend",
     # Lag features
     "aqi_lag_1h", "aqi_lag_2h", "aqi_lag_3h", "aqi_lag_24h",
@@ -76,6 +76,20 @@ FEATURE_COLUMNS = [
     "pm25_roll_3h", "pm25_roll_6h", "pm25_roll_12h", "pm25_roll_24h",
     "no2_roll_3h", "no2_roll_6h", "no2_roll_24h",
     "aqi_roll_3h", "aqi_roll_6h", "aqi_roll_24h",
+    # === Spatial GIS Predictors (NEW) ===
+    # Transportation & Infrastructure
+    "distance_to_major_road_m",
+    "road_density_km",
+    # Urban Form & Land Cover
+    "built_up_ratio",
+    "ndvi_index",
+    "lst_temp_c",
+    "satellite_no2_mol_m2",
+    # Industry & Population
+    "distance_to_industry_m",
+    "population_density_sqkm",
+    # Atmospheric / Boundary Layer
+    "boundary_layer_height_m",
 ]
 TARGET_COLUMN = "aqi"
 

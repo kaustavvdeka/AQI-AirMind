@@ -1,8 +1,9 @@
 """
 AirMind AI — FastAPI Decision Intelligence Service
-Exposes AI prediction, explainability, source attribution, hyperlocal 1km grid,
-dispersion modeling, GIS intelligence layers, enforcement recommendations, multi-city comparisons,
-citizen health advisories, and policy intervention simulations.
+Exposes AI prediction with 95% CIs, SHAP explainability, source attribution,
+Hybrid Spatial Data Fusion (VOPs), Data Quality Monitoring, Layered Fallbacks,
+Gaussian Plume dispersion modeling, GIS intelligence layers, enforcement recommendations,
+multi-city comparisons, citizen health advisories, and policy intervention simulations.
 """
 import logging
 import threading
@@ -21,7 +22,7 @@ logger = logging.getLogger("airmind-ai")
 
 app = FastAPI(
     title="AirMind AI Decision Intelligence Platform",
-    version="2.0.0",
+    version="2.1.0",
     description="AI-Powered Urban Air Quality Intelligence Service for Smart City Intervention."
 )
 
@@ -79,6 +80,9 @@ from app.recommend_gemini import generate_recommendations
 from app.train import train_and_select_best
 from app.cpcb_calculator import calculate_cpcb_aqi
 from app.grid_prediction import generate_hyperlocal_grid
+from app.spatial_fusion import generate_virtual_observation_points
+from app.data_quality import check_data_quality
+from app.fallbacks import get_traffic_emissions, get_fire_spots, get_industrial_emission_probability
 from app.attribution import attribute_pollution_sources
 from app.hotspots import identify_hotspots
 from app.dispersion import compute_gaussian_plume
@@ -95,8 +99,6 @@ class CPCBRequest(BaseModel):
     so2: Optional[float] = 14.0
     co: Optional[float] = 1.1
     o3: Optional[float] = 45.0
-    nh3: Optional[float] = 25.0
-    pb: Optional[float] = 0.2
 
 class SimulationRequest(BaseModel):
     baseline_aqi: float = 245.0
@@ -107,13 +109,21 @@ class SimulationRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"service": "AirMind AI Platform", "version": "2.0.0", "status": "running"}
+    return {"service": "AirMind AI Platform", "version": "2.1.0", "status": "running"}
 
 @app.get("/health")
 def health():
     with _startup_lock:
         status = dict(_startup_status)
     return {"status": "ok" if status["ready"] else "initializing", **status}
+
+@app.get("/data-quality")
+def data_quality_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    return check_data_quality(lat=lat, lon=lon)
+
+@app.get("/spatial-fusion")
+def spatial_fusion_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, grid_size_km: int = 10):
+    return generate_virtual_observation_points(center_lat=lat, center_lon=lon, grid_size_km=grid_size_km)
 
 @app.post("/cpcb-aqi")
 def compute_cpcb_aqi_endpoint(req: CPCBRequest):
@@ -131,23 +141,16 @@ def source_attribution(pm25: float = 85.0, pm10: float = 145.0, no2: float = 42.
     return attribute_pollution_sources(pollutants, weather)
 
 @app.get("/hotspots")
-def hotspots_endpoint(wind_speed: float = 3.2, wind_direction: float = 180.0):
-    points = [
-        {"name": "Guwahati Central", "lat": 26.1445, "lon": 91.7362, "aqi": 185.0},
-        {"name": "Jalukbari Transit Hub", "lat": 26.152, "lon": 91.674, "aqi": 240.0},
-        {"name": "Khanapara Industrial Gate", "lat": 26.115, "lon": 91.815, "aqi": 290.0},
-        {"name": "Dispur Secretariat", "lat": 26.1398, "lon": 91.7915, "aqi": 110.0},
-        {"name": "Boragaon Incident Zone", "lat": 26.1420, "lon": 91.7310, "aqi": 310.0},
-    ]
-    return identify_hotspots(points, wind_speed, wind_direction)
+def hotspots_endpoint(wind_speed: float = 3.2, wind_direction: float = 220.0, lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    return identify_hotspots(wind_speed=wind_speed, wind_direction=wind_direction, center_lat=lat, center_lon=lon)
 
 @app.get("/dispersion")
-def dispersion_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, wind_speed: float = 3.5, wind_direction: float = 180.0):
+def dispersion_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, wind_speed: float = 3.5, wind_direction: float = 220.0):
     return compute_gaussian_plume(source_lat=lat, source_lon=lon, wind_speed=wind_speed, wind_direction=wind_direction)
 
 @app.get("/layers/traffic")
 def traffic_layer(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
-    return get_traffic_layer(lat, lon)
+    return get_traffic_emissions(lat, lon)
 
 @app.get("/layers/industry")
 def industrial_layer(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
@@ -159,7 +162,7 @@ def construction_layer(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
 
 @app.get("/layers/waste-burning")
 def waste_burning_layer(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
-    return get_waste_burning_layer(lat, lon)
+    return get_fire_spots(lat, lon)
 
 @app.get("/enforcement")
 def enforcement_recommendations(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, aqi: float = 245.0):

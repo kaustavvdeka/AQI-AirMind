@@ -28,6 +28,9 @@ async function proxyToAI(res, endpoint, method = "GET", data = null, params = {}
 }
 
 router.get("/grid-prediction", (req, res) => proxyToAI(res, "/grid-prediction", "get", null, req.query));
+router.get("/predict", (req, res) => proxyToAI(res, "/predict", "get", null, req.query));
+router.get("/spatial-fusion", (req, res) => proxyToAI(res, "/spatial-fusion", "get", null, req.query));
+router.get("/data-quality", (req, res) => proxyToAI(res, "/data-quality", "get", null, req.query));
 router.get("/source-attribution", (req, res) => proxyToAI(res, "/source-attribution", "get", null, req.query));
 router.get("/dispersion", (req, res) => proxyToAI(res, "/dispersion", "get", null, req.query));
 router.get("/layers/traffic", (req, res) => proxyToAI(res, "/layers/traffic", "get", null, req.query));

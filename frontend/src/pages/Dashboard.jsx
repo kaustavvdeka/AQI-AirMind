@@ -9,12 +9,11 @@ export default function Dashboard() {
   const { location, coords, aqi, setAqi } = useLocation();
   const [weather, setWeather] = useState(null);
   const [historyData, setHistoryData] = useState([]);
-  const [cpcbData, setCpcbData] = useState(null);
+  const [predictionData, setPredictionData] = useState(null);
   const [sourceData, setSourceData] = useState(null);
   const [shapData, setShapData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -47,16 +46,16 @@ export default function Dashboard() {
           );
         }
 
-        // Fetch CPCB official AQI & Intelligence metrics
-        fetch("/api/intelligence/source-attribution")
-          .then((res) => res.json())
-          .then((data) => setSourceData(data))
-          .catch(() => {});
+        // Fetch Prediction with 95% CIs, Source Attribution & SHAP
+        const [pRes, sRes, shRes] = await Promise.allSettled([
+          fetch("/api/intelligence/predict").then((r) => r.json()),
+          fetch("/api/intelligence/source-attribution").then((r) => r.json()),
+          fetch("/api/intelligence/explain/shap").then((r) => r.json()),
+        ]);
 
-        fetch("/api/intelligence/explain/shap")
-          .then((res) => res.json())
-          .then((data) => setShapData(data))
-          .catch(() => {});
+        if (pRes.status === "fulfilled") setPredictionData(pRes.value);
+        if (sRes.status === "fulfilled") setSourceData(sRes.value);
+        if (shRes.status === "fulfilled") setShapData(shRes.value);
 
       } catch (err) {
         setError(err.message);
@@ -65,32 +64,20 @@ export default function Dashboard() {
       }
     }
     load();
-  }, [coords, location, refreshCount, setAqi]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setRefreshCount((c) => c + 1), 300000);
-    return () => clearInterval(timer);
-  }, []);
+  }, [coords, location, setAqi]);
 
   return (
     <div className="page animate-in" style={{ paddingBottom: 40 }}>
       <header className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>National Air Quality Intelligence Dashboard</h1>
-          <p>Official CPCB Sub-Index Breakdown, Source Attribution, & AI Explainability for Smart City Interventions.</p>
+          <p>Official CPCB Sub-Index Breakdown, Source Attribution, & AI Forecasts with 95% Confidence Intervals.</p>
         </div>
         
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span className="badge badge-info" style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
             📍 Active City: {location} ({coords.lat.toFixed(4)}°N, {coords.lon.toFixed(4)}°E)
           </span>
-          <button 
-            className={`btn btn-secondary btn-sm ${loading ? 'animate-pulse' : ''}`}
-            onClick={() => setRefreshCount((c) => c + 1)}
-            disabled={loading}
-          >
-            🔄 {loading ? "Refreshing…" : "Refresh Data"}
-          </button>
         </div>
       </header>
 
@@ -107,8 +94,39 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* 95% Confidence Interval Forecast Banner */}
+          {predictionData?.["24h"] && (
+            <div className="card" style={{ padding: 20, marginBottom: 28, background: "rgba(45, 212, 191, 0.06)", border: "1px solid rgba(45, 212, 191, 0.3)" }}>
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 800, color: "var(--accent)", marginBottom: 12 }}>
+                🔮 ML Multi-Horizon Forecasts with 95% Confidence Intervals
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+                {["24h", "48h", "72h"].map((h) => {
+                  const item = predictionData[h];
+                  if (!item) return null;
+                  return (
+                    <div key={h} style={{ padding: 14, background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 700 }}>
+                        <span>+{h.toUpperCase()} FORECAST</span>
+                        <span style={{ color: "var(--accent)" }}>{item.confidence_score_pct}% CONFIDENCE</span>
+                      </div>
+                      <div style={{ fontSize: "1.6rem", fontWeight: 800, margin: "4px 0", color: item.color }}>
+                        {item.predicted_aqi} <span style={{ fontSize: "0.85rem" }}>AQI</span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-main)" }}>
+                        95% CI: [{item.confidence_interval_95?.[0]} – {item.confidence_interval_95?.[1]}]
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>
+                        Margin of Error: ±{item.margin_of_error} points
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 24, marginBottom: 28 }} className="forecast-grid">
-            {/* Semicircle Gauge Card */}
             <div className="card-glass card-glow" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
               <AqiGauge value={aqi?.aqi || 145} size={220} />
               {aqi && (
@@ -123,34 +141,17 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Historical Trend Chart */}
             <div className="chart-section" style={{ margin: 0, minHeight: 320 }}>
               <h2>📈 7-Day CPCB AQI Trend — {location}</h2>
               {historyData.length > 0 ? (
                 <div style={{ width: "100%", height: 230 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={historyData}>
-                      <defs>
-                        <linearGradient id="colorAqi" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                       <XAxis dataKey="time" stroke="var(--text-secondary)" fontSize={11} />
                       <YAxis stroke="var(--text-secondary)" fontSize={11} domain={[0, 'auto']} />
-                      <Tooltip 
-                        contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "8px" }}
-                        labelStyle={{ fontWeight: "bold", color: "var(--text-primary)" }}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="aqi" 
-                        stroke="var(--accent)" 
-                        strokeWidth={3} 
-                        dot={{ r: 4, strokeWidth: 1, fill: "var(--bg-base)" }}
-                        activeDot={{ r: 6 }} 
-                      />
+                      <Tooltip contentStyle={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "8px" }} />
+                      <Line type="monotone" dataKey="aqi" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -162,7 +163,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Pollution Source Attribution & SHAP Explainability Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24, marginBottom: 28 }}>
             {/* Source Attribution Card */}
             <div className="card" style={{ padding: 24 }}>
@@ -188,9 +188,6 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
-                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 14, fontStyle: "italic" }}>
-                    {sourceData.explanation}
-                  </p>
                 </div>
               ) : (
                 <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Evaluating multi-source attribution vectors...</div>
@@ -199,16 +196,13 @@ export default function Dashboard() {
 
             {/* Explainable AI SHAP Drivers */}
             <div className="card" style={{ padding: 24 }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16 }}>💡 Explainable AI (SHAP Driver Analysis)</h3>
-              <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: 16 }}>
-                Primary features driving current ML model prediction for {location}:
-              </p>
+              <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16 }}>💡 Explainable AI (SHAP Feature Importance)</h3>
               {shapData?.shap_summary?.top_shap_features ? (
                 <div>
                   {shapData.shap_summary.top_shap_features.slice(0, 5).map(([feat, val]) => (
                     <div key={feat} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, marginBottom: 8, fontSize: "0.85rem" }}>
                       <span style={{ fontWeight: 600 }}>{feat}</span>
-                      <span style={{ fontWeight: 700, color: "#76ff03" }}>+{(val * 100).toFixed(1)}% Impact</span>
+                      <span style={{ fontWeight: 700, color: "#76ff03" }}>+{(val * 100).toFixed(1)}% Weight</span>
                     </div>
                   ))}
                 </div>
@@ -217,33 +211,6 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
-          <section>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-              📊 CPCB Ground Sensor Pollutant Breakdowns
-            </h2>
-            <div className="card-grid">
-              <AqiCard label="PM2.5" value={aqi?.pm25} unit="µg/m³" sub="Fine particulate matter" />
-              <AqiCard label="PM10" value={aqi?.pm10} unit="µg/m³" sub="Coarse particulate matter" />
-              <AqiCard label="NO₂" value={aqi?.no2} unit="µg/m³" sub="Nitrogen dioxide" />
-              <AqiCard label="SO₂" value={aqi?.so2} unit="µg/m³" sub="Sulfur dioxide" />
-              <AqiCard label="CO" value={aqi?.co} unit="mg/m³" sub="Carbon monoxide" />
-              <AqiCard label="O₃" value={aqi?.o3} unit="µg/m³" sub="Ozone" />
-            </div>
-          </section>
-
-          <section style={{ marginTop: 32 }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-              🌤️ Local Atmospheric Conditions
-            </h2>
-            <div className="card-grid">
-              <AqiCard label="Temperature" value={weather?.temperature} unit="°C" sub="Ambient temperature" />
-              <AqiCard label="Humidity" value={weather?.humidity} unit="%" sub="Relative humidity" />
-              <AqiCard label="Wind Speed" value={weather?.windSpeed} unit="m/s" sub="Atmospheric dispersion speed" />
-              <AqiCard label="Rainfall" value={weather?.rainfall} unit="mm" sub="Precipitation level" />
-              <AqiCard label="Pressure" value={weather?.pressure} unit="hPa" sub="Barometric pressure" />
-            </div>
-          </section>
         </>
       )}
     </div>
