@@ -1,8 +1,9 @@
 """
 AirMind AI — FastAPI Decision Intelligence Service
 Exposes AI prediction with 95% CIs, SHAP explainability, source attribution,
-Hybrid Spatial Data Fusion (VOPs), Data Quality Monitoring, AirMind Agent Synthesis,
-Gemini AI Analyst Layer, Executive PDF Report Generator, and Community Green Rankings.
+Hybrid Spatial Data Fusion (VOPs), Virtual Sensor Network, Satellite Gap Filling,
+4D Atmospheric Digital Twin, Computer Vision Incident Verification, RAG Knowledge Base,
+Continuous Model Monitoring, Smart Notifications, Gemini AI Analyst, and Reports.
 """
 import logging
 import threading
@@ -21,7 +22,7 @@ logger = logging.getLogger("airmind-ai")
 
 app = FastAPI(
     title="AirMind AI Decision Intelligence Platform",
-    version="2.2.0",
+    version="2.3.0",
     description="AI-Powered Urban Environmental Decision Intelligence Service for Smart City Intervention."
 )
 
@@ -90,6 +91,15 @@ from app.multi_city import get_multi_city_comparison
 from app.health_advisory import generate_health_advisory
 from app.simulator import simulate_interventions
 
+# Advanced Software-Only Enhancement Modules
+from app.virtual_sensors import generate_virtual_sensor_network
+from app.satellite_gap_fill import reconstruct_satellite_gaps
+from app.digital_twin import simulate_atmospheric_digital_twin
+from app.vision_analyzer import analyze_incident_image
+from app.rag_engine import query_rag_knowledge_base
+from app.model_monitoring import check_model_monitoring
+from app.notifications import generate_smart_notifications
+
 # AirMind Intelligence Agent Modules
 from app.agent.airmind_agent import AirMindAgent
 from app.agent.community_ranking import CommunityRankingEngine
@@ -114,6 +124,12 @@ class SimulationRequest(BaseModel):
 class ChatRequest(BaseModel):
     question: str
 
+class VisionRequest(BaseModel):
+    image_filename: str = "smoke_incident.jpg"
+    location_name: str = "Ward 12"
+    latitude: float = DEFAULT_LAT
+    longitude: float = DEFAULT_LON
+
 def _build_current_intelligence_json(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON) -> Dict[str, Any]:
     cpcb_res = calculate_cpcb_aqi({"pm25": 85.0, "pm10": 145.0, "no2": 42.0, "so2": 14.0, "co": 1.1})
     fc_res = predict_all_horizons()
@@ -137,13 +153,47 @@ def _build_current_intelligence_json(lat: float = DEFAULT_LAT, lon: float = DEFA
 
 @app.get("/")
 def root():
-    return {"service": "AirMind AI Platform", "version": "2.2.0", "status": "running"}
+    return {"service": "AirMind AI Platform", "version": "2.3.0", "status": "running"}
 
 @app.get("/health")
 def health():
     with _startup_lock:
         status = dict(_startup_status)
     return {"status": "ok" if status["ready"] else "initializing", **status}
+
+# === Advanced Software-Only Enhancement Endpoints ===
+@app.get("/virtual-sensors")
+def virtual_sensors_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, grid_size_km: int = 8):
+    return generate_virtual_sensor_network(center_lat=lat, center_lon=lon, grid_size_km=grid_size_km)
+
+@app.get("/satellite-gap-fill")
+def satellite_gap_fill_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, cloud_cover: float = 45.0):
+    return reconstruct_satellite_gaps(center_lat=lat, center_lon=lon, cloud_cover_pct=cloud_cover)
+
+@app.get("/digital-twin")
+def digital_twin_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON, hours: int = 6):
+    return simulate_atmospheric_digital_twin(center_lat=lat, center_lon=lon, simulation_hours=hours)
+
+@app.post("/verify-incident-image")
+def verify_incident_image_endpoint(req: VisionRequest):
+    return analyze_incident_image(
+        image_filename=req.image_filename,
+        location_name=req.location_name,
+        latitude=req.latitude,
+        longitude=req.longitude
+    )
+
+@app.get("/rag-query")
+def rag_query_endpoint(query: str):
+    return query_rag_knowledge_base(query)
+
+@app.get("/model-monitoring")
+def model_monitoring_endpoint():
+    return check_model_monitoring()
+
+@app.get("/notifications")
+def notifications_endpoint(lat: float = DEFAULT_LAT, lon: float = DEFAULT_LON):
+    return generate_smart_notifications(current_aqi=185.0, forecast_24h=210.0)
 
 # === AirMind Intelligence Agent Endpoints ===
 @app.get("/agent/intelligence-json")

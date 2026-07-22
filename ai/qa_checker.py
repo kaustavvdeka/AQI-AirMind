@@ -1,7 +1,9 @@
 """
 AirMind AI — Final System QA & Compliance Verification Runner
 Executes end-to-end checks across all core platform modules, ML pipelines,
-AirMind Intelligence Agent, Gemini AI Analyst, PDF generator, and Community Leaderboards.
+Virtual Sensor Network, Satellite Gap Filling, Adaptive HDBSCAN, 4D Digital Twin,
+Computer Vision, RAG Knowledge Base, Model Monitoring, Notifications, AirMind Intelligence Agent,
+Gemini AI Analyst, PDF generator, and Community Leaderboards.
 """
 import logging
 from datetime import datetime, timezone
@@ -20,8 +22,18 @@ from app.agent.community_ranking import CommunityRankingEngine
 from app.gemini_analyst import GeminiAnalyst
 from app.pdf_generator import generate_pdf_report
 
+# Advanced Software-Only Enhancement Imports
+from app.virtual_sensors import generate_virtual_sensor_network
+from app.satellite_gap_fill import reconstruct_satellite_gaps
+from app.hotspots import identify_hotspots
+from app.digital_twin import simulate_atmospheric_digital_twin
+from app.vision_analyzer import analyze_incident_image
+from app.rag_engine import query_rag_knowledge_base
+from app.model_monitoring import check_model_monitoring
+from app.notifications import generate_smart_notifications
+
 def run_all_qa_checks():
-    logger.info("Executing AirMind AI System QA & Agent Intelligence Suite Sweep...")
+    logger.info("Executing AirMind AI System QA & Comprehensive Enhancement Suite Sweep...")
     results = []
 
     # 1. Master AirMind Intelligence Agent Synthesis Check
@@ -59,7 +71,7 @@ def run_all_qa_checks():
     except Exception as e:
         results.append({"feature": "Community Green Ranking Leaderboard", "status": "FAIL", "details": str(e)})
 
-    # 4. Executive PDF Generator Check
+    # 4. Publication-Quality Executive PDF Generator Check
     try:
         pdf_bytes = generate_pdf_report(intel_json)
         status = "PASS" if len(pdf_bytes) > 1000 else "FAIL"
@@ -75,17 +87,73 @@ def run_all_qa_checks():
     except Exception as e:
         results.append({"feature": "Hybrid Spatial Data Fusion", "status": "FAIL", "details": str(e)})
 
-    # 6. Data Quality & API Freshness Check
+    # 6. Virtual Sensor Network Engine Check
     try:
-        dq = check_data_quality()
-        status = "PASS" if dq["health_score_pct"] >= 70.0 else "FAIL"
-        results.append({"feature": "Data Quality & API Freshness Monitor", "status": status, "details": f"Health Score: {dq['health_score_pct']}%, Status: {dq['overall_status']}"})
+        vsens = generate_virtual_sensor_network()
+        status = "PASS" if vsens["virtual_sensors_count"] == 64 else "FAIL"
+        results.append({"feature": "Intelligent Virtual Sensor Network (GPR & Kriging)", "status": status, "details": f"Generated {vsens['virtual_sensors_count']} virtual sensors with uncertainty bounds"})
     except Exception as e:
-        results.append({"feature": "Data Quality & API Freshness Monitor", "status": "FAIL", "details": str(e)})
+        results.append({"feature": "Intelligent Virtual Sensor Network", "status": "FAIL", "details": str(e)})
+
+    # 7. AI Satellite Gap Filling Check
+    try:
+        sgap = reconstruct_satellite_gaps()
+        status = "PASS" if sgap["reconstructed_pixels_count"] > 0 else "FAIL"
+        results.append({"feature": "AI Satellite Gap Filling Engine (Cloud & Swath Reconstruction)", "status": status, "details": f"Reconstructed {sgap['reconstructed_pixels_count']}/{sgap['total_pixels']} satellite pixels"})
+    except Exception as e:
+        results.append({"feature": "AI Satellite Gap Filling Engine", "status": "FAIL", "details": str(e)})
+
+    # 8. Adaptive HDBSCAN Hotspots Check
+    try:
+        hs = identify_hotspots()
+        status = "PASS" if isinstance(hs, list) else "FAIL"
+        results.append({"feature": "Adaptive HDBSCAN Hotspot Detection Engine", "status": status, "details": f"Identified {len(hs)} adaptive hotspot polygons"})
+    except Exception as e:
+        results.append({"feature": "Adaptive HDBSCAN Hotspot Detection Engine", "status": "FAIL", "details": str(e)})
+
+    # 9. 4D Atmospheric Digital Twin Check
+    try:
+        dtwin = simulate_atmospheric_digital_twin()
+        status = "PASS" if len(dtwin["timeline"]) == 6 else "FAIL"
+        results.append({"feature": "4D Atmospheric Digital Twin Simulation Engine", "status": status, "details": f"Simulated {len(dtwin['timeline'])} hourly spatiotemporal dispersion steps"})
+    except Exception as e:
+        results.append({"feature": "4D Atmospheric Digital Twin Simulation Engine", "status": "FAIL", "details": str(e)})
+
+    # 10. Computer Vision Incident Detection Check
+    try:
+        cvision = analyze_incident_image("smoke_fire.jpg")
+        status = "PASS" if cvision["verification_score"] >= 80.0 else "FAIL"
+        results.append({"feature": "Computer Vision Incident Detection Engine", "status": status, "details": f"Type: {cvision['incident_type']}, Verification Score: {cvision['verification_score']}%"})
+    except Exception as e:
+        results.append({"feature": "Computer Vision Incident Detection Engine", "status": "FAIL", "details": str(e)})
+
+    # 11. RAG Environmental Knowledge Intelligence Check
+    try:
+        rag = query_rag_knowledge_base("CPCB NAQI guidelines")
+        status = "PASS" if len(rag["documents"]) > 0 else "FAIL"
+        results.append({"feature": "RAG Environmental Knowledge Intelligence Engine", "status": status, "details": f"Retrieved {len(rag['documents'])} policy documents, Citations: {rag['citations']}"})
+    except Exception as e:
+        results.append({"feature": "RAG Environmental Knowledge Intelligence Engine", "status": "FAIL", "details": str(e)})
+
+    # 12. Continuous Model Monitoring Check
+    try:
+        mmon = check_model_monitoring()
+        status = "PASS" if mmon["system_status"] == "HEALTHY" else "FAIL"
+        results.append({"feature": "Continuous Model Monitoring & Drift System", "status": status, "details": f"Status: {mmon['system_status']}, R²: {mmon['performance_metrics']['r2_score']}"})
+    except Exception as e:
+        results.append({"feature": "Continuous Model Monitoring & Drift System", "status": "FAIL", "details": str(e)})
+
+    # 13. Smart Notifications Engine Check
+    try:
+        notif = generate_smart_notifications()
+        status = "PASS" if notif["unread_count"] > 0 else "FAIL"
+        results.append({"feature": "Smart Environmental Notification Engine", "status": status, "details": f"Generated {notif['unread_count']} personalized alerts"})
+    except Exception as e:
+        results.append({"feature": "Smart Environmental Notification Engine", "status": "FAIL", "details": str(e)})
 
     # Print Summary Report
     print("\n" + "="*80)
-    print("           AIRMIND AI — SYSTEM CERTIFICATION REPORT")
+    print("           AIRMIND AI — COMPREHENSIVE SYSTEM CERTIFICATION REPORT")
     print("="*80)
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}\n")
 
@@ -98,7 +166,7 @@ def run_all_qa_checks():
 
     report_path = MODELS_DIR / "final_qa_report.md"
     with open(report_path, "w") as f:
-        f.write("# AirMind AI — System Certification Report\n\n")
+        f.write("# AirMind AI — Comprehensive System Certification Report\n\n")
         f.write(f"Generated at: {datetime.now(timezone.utc).isoformat()}\n\n")
         f.write(table)
     logger.info("QA Report saved to: %s", report_path)

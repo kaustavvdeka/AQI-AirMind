@@ -94,12 +94,16 @@ export default function MapPage() {
             🌐 Virtual Observation Points (VOP Grid)
           </label>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+            <input type="checkbox" checked={layers.virtualSensors} onChange={() => toggle("virtualSensors")} />
+            📡 Virtual Sensor Network (GPR / Kriging)
+          </label>
+          <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
             <input type="checkbox" checked={layers.hotspots} onChange={() => toggle("hotspots")} />
-            🔥 DBSCAN Hotspots (Enriched)
+            🔥 Adaptive HDBSCAN Hotspots
           </label>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
             <input type="checkbox" checked={layers.dispersion} onChange={() => toggle("dispersion")} />
-            💨 Gaussian Dispersion Plume
+            💨 4D Atmospheric Digital Twin
           </label>
           <label style={{ fontSize: "0.82rem", fontWeight: 600 }}>
             <input type="checkbox" checked={layers.traffic} onChange={() => toggle("traffic")} />

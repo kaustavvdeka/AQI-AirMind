@@ -3,38 +3,65 @@ import { useState, useEffect } from "react";
 export default function MultiCityPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function fetchMultiCityData() {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/intelligence/multi-city");
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (err) {
+      console.error("Failed to fetch multi-city data:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    fetch("/api/intelligence/multi-city")
-      .then((res) => res.json())
-      .then((res) => {
-        setData(res);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+    fetchMultiCityData();
+    const interval = setInterval(fetchMultiCityData, 30000); // Auto-refresh every 30s
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
     return (
       <div className="page-container" style={{ textAlign: "center", paddingTop: 80 }}>
         <div className="spinner" style={{ margin: "0 auto 16px" }}></div>
-        <p style={{ color: "var(--text-muted)" }}>Loading Multi-City Air Quality Intelligence...</p>
+        <p style={{ color: "var(--text-muted)" }}>Fusing Dynamic Multi-City Weather & Air Quality Feeds...</p>
       </div>
     );
   }
 
   return (
-    <div className="page-container" style={{ padding: "32px 24px" }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: 8 }}>
-          🌆 Multi-City Intelligence Dashboard
-        </h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
-          Comparative real-time AQI rankings, 24h trends, active hotspots, and intervention effectiveness across major Indian metropolitan centers.
-        </p>
+    <div className="page-container animate-in" style={{ padding: "32px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: 8 }}>
+            🌆 Multi-City Real-Time Intelligence Command Center
+          </h1>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
+            Dynamic real-time AQI rankings, CPCB sub-index breakdown, 24h forecasts, live weather vectors, and intervention scores across 8 Indian metropolises.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {data?.updated_at && (
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              ⏱️ Last Synced: {new Date(data.updated_at).toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={fetchMultiCityData}
+            disabled={refreshing}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
+            {refreshing ? "🔄 Syncing..." : "🔄 Refresh Feeds"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 28 }}>
@@ -56,16 +83,17 @@ export default function MultiCityPage() {
       </div>
 
       <div className="card" style={{ padding: 24, overflowX: "auto" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16 }}>City AQI Leaderboard & Forecast Standing</h3>
+        <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: 16 }}>Live Metro Air Quality Leaderboard & Forecast Standing</h3>
         <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
               <th style={{ padding: "12px 16px" }}>National Rank</th>
               <th style={{ padding: "12px 16px" }}>City & State</th>
-              <th style={{ padding: "12px 16px" }}>Current AQI</th>
-              <th style={{ padding: "12px 16px" }}>Category</th>
+              <th style={{ padding: "12px 16px" }}>Live AQI</th>
+              <th style={{ padding: "12px 16px" }}>Dominant / PM2.5</th>
+              <th style={{ padding: "12px 16px" }}>Weather</th>
               <th style={{ padding: "12px 16px" }}>24h Forecast</th>
-              <th style={{ padding: "12px 16px" }}>Active Hotspots</th>
+              <th style={{ padding: "12px 16px" }}>Hotspot Zones</th>
               <th style={{ padding: "12px 16px" }}>Intervention Score</th>
             </tr>
           </thead>
@@ -77,20 +105,26 @@ export default function MultiCityPage() {
                   <div style={{ fontWeight: 700 }}>{c.city}</div>
                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.state}</div>
                 </td>
-                <td style={{ padding: "14px 16px", fontWeight: 800, fontSize: "1.1rem", color: c.color }}>{c.aqi}</td>
-                <td style={{ padding: "14px 16px" }}>
-                  <span style={{ padding: "3px 10px", borderRadius: 12, background: `${c.color}22`, color: c.color, fontWeight: 700, fontSize: "0.8rem" }}>
-                    {c.category}
-                  </span>
+                <td style={{ padding: "14px 16px", fontWeight: 800, fontSize: "1.1rem", color: c.color }}>
+                  {c.aqi}
+                  <div style={{ fontSize: "0.75rem", color: c.color, fontWeight: 600 }}>{c.category}</div>
                 </td>
                 <td style={{ padding: "14px 16px" }}>
-                  <span style={{ fontWeight: 700 }}>{c.forecast_24h}</span>
-                  <span style={{ marginLeft: 6, fontSize: "0.75rem", color: c.trend === "Worsening" ? "#ff3d00" : "#00e676" }}>
-                    ({c.trend === "Worsening" ? "▲" : "▼"} {c.trend})
+                  <div style={{ fontWeight: 700 }}>PM2.5: {c.pm25} µg/m³</div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>PM10: {c.pm10} | NO₂: {c.no2}</div>
+                </td>
+                <td style={{ padding: "14px 16px", fontSize: "0.82rem" }}>
+                  <div>🌡️ {c.temperature_c}°C</div>
+                  <div style={{ color: "var(--text-muted)" }}>💨 {c.wind_speed_ms} m/s</div>
+                </td>
+                <td style={{ padding: "14px 16px" }}>
+                  <span style={{ fontWeight: 700 }}>{c.forecast_24h} AQI</span>
+                  <span style={{ marginLeft: 6, fontSize: "0.75rem", color: c.trend === "Worsening" ? "#ff3d00" : (c.trend === "Improving" ? "#00e676" : "#ffea00") }}>
+                    ({c.trend === "Worsening" ? "▲" : (c.trend === "Improving" ? "▼" : "•")} {c.trend})
                   </span>
                 </td>
-                <td style={{ padding: "14px 16px", fontWeight: 700, color: c.active_hotspots > 5 ? "#ff3d00" : "var(--text-main)" }}>
-                  {c.active_hotspots} Zones
+                <td style={{ padding: "14px 16px", fontWeight: 700, color: c.active_hotspots > 4 ? "#ff3d00" : "var(--text-main)" }}>
+                  {c.active_hotspots} Active Zones
                 </td>
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

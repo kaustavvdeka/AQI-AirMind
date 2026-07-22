@@ -40,11 +40,23 @@ router.get("/grid-prediction", (req, res) => proxyToAI(res, "/grid-prediction", 
 router.get("/predict", (req, res) => proxyToAI(res, "/predict", "get", null, req.query));
 router.get("/spatial-fusion", (req, res) => proxyToAI(res, "/spatial-fusion", "get", null, req.query));
 router.get("/data-quality", (req, res) => proxyToAI(res, "/data-quality", "get", null, req.query));
+
+// Advanced Software-Only Enhancement Proxy Endpoints
+router.get("/virtual-sensors", (req, res) => proxyToAI(res, "/virtual-sensors", "get", null, req.query));
+router.get("/satellite-gap-fill", (req, res) => proxyToAI(res, "/satellite-gap-fill", "get", null, req.query));
+router.get("/digital-twin", (req, res) => proxyToAI(res, "/digital-twin", "get", null, req.query));
+router.post("/verify-incident-image", (req, res) => proxyToAI(res, "/verify-incident-image", "post", req.body));
+router.get("/rag-query", (req, res) => proxyToAI(res, "/rag-query", "get", null, req.query));
+router.get("/model-monitoring", (req, res) => proxyToAI(res, "/model-monitoring", "get", null, req.query));
+router.get("/notifications", (req, res) => proxyToAI(res, "/notifications", "get", null, req.query));
+
+// AirMind Intelligence Agent Endpoints
 router.get("/agent/intelligence-json", (req, res) => proxyToAI(res, "/agent/intelligence-json", "get", null, req.query));
 router.get("/agent/explain-gemini", (req, res) => proxyToAI(res, "/agent/explain-gemini", "get", null, req.query));
 router.get("/agent/community-rankings", (req, res) => proxyToAI(res, "/agent/community-rankings", "get", null, req.query));
 router.get("/agent/report/pdf", (req, res) => proxyToAI(res, "/agent/report/pdf", "get", null, req.query));
 router.post("/agent/chat", (req, res) => proxyToAI(res, "/agent/chat", "post", req.body));
+
 router.get("/source-attribution", (req, res) => proxyToAI(res, "/source-attribution", "get", null, req.query));
 router.get("/dispersion", (req, res) => proxyToAI(res, "/dispersion", "get", null, req.query));
 router.get("/layers/traffic", (req, res) => proxyToAI(res, "/layers/traffic", "get", null, req.query));

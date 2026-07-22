@@ -151,12 +151,37 @@ export default function CitizenPortal() {
             
             <div className="form-group">
               <label className="form-label">Evidence Image URL (Optional)</label>
-              <input
-                className="form-input"
-                placeholder="https://example.com/photo.jpg"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  className="form-input"
+                  placeholder="https://example.com/smoke_photo.jpg"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    if (!imageUrl) return alert("Please enter an image URL to verify.");
+                    try {
+                      const res = await fetch("/api/intelligence/verify-incident-image", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ image_filename: imageUrl, location_name: location, latitude: coords?.lat || 28.6139, longitude: coords?.lon || 77.2090 })
+                      });
+                      if (res.ok) {
+                        const vData = await res.json();
+                        alert(`🔍 AI Computer Vision Verification:\nType: ${vData.incident_type}\nVerification Score: ${vData.verification_score}%\nSuggested Action: ${vData.suggested_enforcement_action}`);
+                      }
+                    } catch (err) {
+                      alert("Error verifying image: " + err.message);
+                    }
+                  }}
+                >
+                  👁️ Verify Image AI
+                </button>
+              </div>
             </div>
 
             <div className="form-group">
